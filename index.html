@@ -1,598 +1,629 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lead Times Dashboard 2024–25</title>
-<style>
-  :root {
-    --bg: #F8F9FB;
-    --surface: #FFFFFF;
-    --border: #E4E8EF;
-    --text-primary: #1A1D23;
-    --text-secondary: #6B7280;
-    --text-muted: #9CA3AF;
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard czasów realizacji</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f8fb;
+      --panel: #ffffff;
+      --text: #172033;
+      --muted: #647084;
+      --line: #d8dee9;
+      --line-strong: #aeb8c8;
+      --green: #1f9d69;
+      --yellow: #d69d17;
+      --orange: #e06a2d;
+      --red: #c43e49;
+      --blue: #2869d8;
+      --violet: #7252c7;
+      --teal: #148a9c;
+      --shadow: 0 12px 32px rgba(23, 32, 51, 0.08);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
 
-    /* Size colors */
-    --s-color: #3B82F6;
-    --s-light: #DBEAFE;
-    --m-color: #8B5CF6;
-    --m-light: #EDE9FE;
-    --l-color: #F59E0B;
-    --l-light: #FEF3C7;
+    * {
+      box-sizing: border-box;
+    }
 
-    /* Percentile band colors */
-    --p50: #22C55E;
-    --p85: #F59E0B;
-    --p95: #EF4444;
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+    }
 
-    --radius: 12px;
-    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
-    --shadow-md: 0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.05);
-  }
+    .lead-dashboard {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 24px auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
 
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+    .dashboard-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 20px;
+      padding: 22px 24px 18px;
+      border-bottom: 1px solid var(--line);
+      align-items: start;
+    }
 
-  body {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    background: var(--bg);
-    color: var(--text-primary);
-    min-height: 100vh;
-    padding: 32px 24px;
-  }
+    h1 {
+      margin: 0 0 6px;
+      font-size: 24px;
+      line-height: 1.2;
+      font-weight: 760;
+      letter-spacing: 0;
+    }
 
-  .page-header {
-    margin-bottom: 28px;
-  }
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
 
-  .page-header h1 {
-    font-size: 22px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: var(--text-primary);
-  }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+    }
 
-  .page-header p {
-    font-size: 14px;
-    color: var(--text-secondary);
-    margin-top: 4px;
-  }
+    .segmented {
+      display: inline-flex;
+      padding: 3px;
+      gap: 3px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f3f5f9;
+    }
 
-  /* Filter bar */
-  .filter-bar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 24px;
-    flex-wrap: wrap;
-  }
+    .size-button {
+      min-width: 44px;
+      height: 34px;
+      border: 0;
+      border-radius: 6px;
+      padding: 0 12px;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+    }
 
-  .filter-label {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text-secondary);
-    margin-right: 4px;
-  }
+    .size-button[aria-pressed="true"] {
+      color: var(--text);
+      background: #ffffff;
+      box-shadow: 0 1px 5px rgba(23, 32, 51, 0.12);
+    }
 
-  .size-btn {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 6px 14px;
-    border-radius: 8px;
-    border: 1.5px solid var(--border);
-    background: var(--surface);
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    transition: all .15s ease;
-    user-select: none;
-  }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 1px;
+      background: var(--line);
+      border-bottom: 1px solid var(--line);
+    }
 
-  .size-btn .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-  }
+    .stat {
+      min-height: 82px;
+      background: #ffffff;
+      padding: 14px 16px;
+    }
 
-  .size-btn.active-S {
-    border-color: var(--s-color);
-    background: var(--s-light);
-    color: var(--s-color);
-  }
-  .size-btn.active-M {
-    border-color: var(--m-color);
-    background: var(--m-light);
-    color: var(--m-color);
-  }
-  .size-btn.active-L {
-    border-color: var(--l-color);
-    background: var(--l-light);
-    color: #92400E;
-  }
+    .stat-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
 
-  .size-btn:hover:not(.active-S):not(.active-M):not(.active-L) {
-    background: var(--bg);
-    border-color: #9CA3AF;
-  }
+    .stat-value {
+      margin-top: 7px;
+      font-size: 25px;
+      line-height: 1;
+      font-weight: 780;
+      letter-spacing: 0;
+    }
 
-  /* KPI cards */
-  .kpi-row {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    margin-bottom: 20px;
-  }
+    .stat-note {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
 
-  .kpi-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 16px 18px;
-    box-shadow: var(--shadow);
-    transition: opacity .2s ease;
-  }
+    .chart-wrap {
+      position: relative;
+      padding: 18px 18px 8px;
+    }
 
-  .kpi-card.dimmed { opacity: .35; }
+    .chart-frame {
+      position: relative;
+      width: 100%;
+      min-height: 520px;
+    }
 
-  .kpi-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 12px;
-  }
+    svg {
+      display: block;
+      width: 100%;
+      height: 520px;
+      overflow: visible;
+    }
 
-  .kpi-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-  }
+    .axis text {
+      fill: var(--muted);
+      font-size: 12px;
+    }
 
-  .kpi-size-label {
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: .06em;
-    text-transform: uppercase;
-  }
+    .axis path,
+    .axis line,
+    .grid line {
+      stroke: var(--line);
+      stroke-width: 1;
+      shape-rendering: crispEdges;
+    }
 
-  .kpi-count {
-    font-size: 11px;
-    color: var(--text-muted);
-    margin-left: auto;
-  }
+    .grid line {
+      stroke-dasharray: 3 5;
+    }
 
-  .kpi-percentiles {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
+    .percentile-line {
+      stroke-width: 2;
+      stroke-dasharray: 8 6;
+    }
 
-  .kpi-row-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 13px;
-  }
+    .point {
+      cursor: pointer;
+      stroke: #ffffff;
+      stroke-width: 2;
+      transition: r 120ms ease, opacity 120ms ease;
+    }
 
-  .pct-label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--text-secondary);
-    font-weight: 500;
-  }
+    .point:hover,
+    .point:focus {
+      r: 8;
+      outline: 0;
+    }
 
-  .pct-badge {
-    width: 8px;
-    height: 8px;
-    border-radius: 2px;
-  }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 18px;
+      padding: 0 10px 16px 56px;
+      color: var(--muted);
+      font-size: 13px;
+    }
 
-  .pct-value {
-    font-weight: 700;
-    font-size: 14px;
-    font-variant-numeric: tabular-nums;
-  }
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      white-space: nowrap;
+    }
 
-  /* Chart area */
-  .chart-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-md);
-    padding: 20px 20px 16px;
-  }
+    .swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 0 1px var(--line-strong);
+    }
 
-  .chart-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 4px;
-  }
+    .tooltip {
+      position: fixed;
+      z-index: 10;
+      max-width: 260px;
+      pointer-events: none;
+      transform: translate(12px, -18px);
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 12px 28px rgba(23, 32, 51, 0.16);
+      font-size: 13px;
+      line-height: 1.4;
+      color: var(--text);
+      opacity: 0;
+    }
 
-  .chart-subtitle {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-bottom: 16px;
-  }
+    .tooltip strong {
+      display: block;
+      margin-bottom: 4px;
+    }
 
-  #scatter-svg {
-    width: 100%;
-    overflow: visible;
-  }
+    .empty-state {
+      display: none;
+      position: absolute;
+      inset: 42px 12px 24px 56px;
+      place-items: center;
+      color: var(--muted);
+      border: 1px dashed var(--line-strong);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.78);
+      font-weight: 700;
+    }
 
-  /* Legend */
-  .legend {
-    display: flex;
-    gap: 20px;
-    flex-wrap: wrap;
-    margin-top: 14px;
-    padding-top: 14px;
-    border-top: 1px solid var(--border);
-  }
+    .source {
+      padding: 0 24px 18px;
+      color: var(--muted);
+      font-size: 12px;
+    }
 
-  .legend-group {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-  }
+    @media (max-width: 760px) {
+      .lead-dashboard {
+        width: calc(100vw - 18px);
+        margin: 9px auto;
+      }
 
-  .legend-group-label {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-bottom: 2px;
-  }
+      .dashboard-header {
+        grid-template-columns: 1fr;
+        padding: 18px 16px 14px;
+      }
 
-  .legend-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--text-secondary);
-  }
+      .controls {
+        justify-content: flex-start;
+      }
 
-  .legend-dot {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
+      .stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
 
-  .legend-line {
-    width: 20px;
-    height: 2px;
-    flex-shrink: 0;
-    border-radius: 2px;
-  }
+      .chart-wrap {
+        padding: 10px 8px 6px;
+      }
 
-  .legend-dash {
-    width: 20px;
-    height: 0;
-    border-top: 2px dashed;
-    flex-shrink: 0;
-  }
+      .chart-frame,
+      svg {
+        min-height: 470px;
+        height: 470px;
+      }
 
-  /* Tooltip */
-  .tooltip {
-    position: fixed;
-    background: var(--text-primary);
-    color: #fff;
-    padding: 8px 12px;
-    border-radius: 8px;
-    font-size: 12px;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity .12s ease;
-    z-index: 1000;
-    white-space: nowrap;
-    box-shadow: 0 4px 12px rgba(0,0,0,.2);
-  }
-
-  .tooltip.visible { opacity: 1; }
-
-  .tooltip-date { color: #9CA3AF; font-size: 11px; margin-top: 2px; }
-</style>
+      .legend {
+        padding-left: 12px;
+      }
+    }
+  </style>
 </head>
 <body>
-
-<div class="page-header">
-  <h1>Lead Times — 2024–25</h1>
-  <p>Czasy realizacji zadań według rozmiaru · percentyle 50 / 85 / 95</p>
-</div>
-
-<!-- Filters -->
-<div class="filter-bar">
-  <span class="filter-label">Rozmiar:</span>
-  <button class="size-btn active-S" data-size="S" onclick="toggleSize('S')">
-    <span class="dot" style="background:var(--s-color)"></span> S
-  </button>
-  <button class="size-btn active-M" data-size="M" onclick="toggleSize('M')">
-    <span class="dot" style="background:var(--m-color)"></span> M
-  </button>
-  <button class="size-btn active-L" data-size="L" onclick="toggleSize('L')">
-    <span class="dot" style="background:var(--l-color)"></span> L
-  </button>
-</div>
-
-<!-- KPI cards -->
-<div class="kpi-row" id="kpi-row">
-  <!-- filled by JS -->
-</div>
-
-<!-- Chart -->
-<div class="chart-card">
-  <div class="chart-title">Czas realizacji zadań</div>
-  <div class="chart-subtitle">Każdy punkt to jedno zadanie · linie przerywane = percentyle dla widocznych rozmiarów</div>
-  <svg id="scatter-svg"></svg>
-  <div class="legend">
-    <div class="legend-group">
-      <div class="legend-group-label">Rozmiar</div>
-      <div class="legend-item"><span class="legend-dot" style="background:var(--s-color)"></span> S — small</div>
-      <div class="legend-item"><span class="legend-dot" style="background:var(--m-color)"></span> M — medium</div>
-      <div class="legend-item"><span class="legend-dot" style="background:var(--l-color)"></span> L — large</div>
-    </div>
-    <div class="legend-group">
-      <div class="legend-group-label">Percentyle</div>
-      <div class="legend-item"><span class="legend-dash" style="border-color:var(--p50)"></span> 50. percentyl (mediana)</div>
-      <div class="legend-item"><span class="legend-dash" style="border-color:var(--p85)"></span> 85. percentyl</div>
-      <div class="legend-item"><span class="legend-dash" style="border-color:var(--p95)"></span> 95. percentyl</div>
-    </div>
-  </div>
-</div>
-
-<div class="tooltip" id="tooltip"></div>
-
-<script>
-const RAW = [
-  {date:"15 Lipca 2024",      size:"S", days:49},
-  {date:"22 Sierpnia 2024",   size:"S", days:48},
-  {date:"10 Września 2024",   size:"S", days:87},
-  {date:"25 Września 2024",   size:"M", days:57},
-  {date:"5 Października 2024",size:"M", days:148},
-  {date:"14 Października 2024",size:"S",days:53},
-  {date:"28 Października 2024",size:"S",days:45},
-  {date:"18 Listopada 2024",  size:"M", days:145},
-  {date:"4 Grudnia 2024",     size:"L", days:105},
-  {date:"8 Stycznia 2025",    size:"S", days:5},
-  {date:"20 Stycznia 2025",   size:"L", days:163},
-  {date:"14 Lutego 2025",     size:"S", days:43},
-  {date:"26 Lutego 2025",     size:"M", days:415},
-  {date:"15 Marca 2025",      size:"L", days:123},
-  {date:"10 Kwietnia 2025",   size:"M", days:103},
-  {date:"5 Maja 2025",        size:"L", days:104},
-  {date:"12 Czerwca 2025",    size:"L", days:302},
-  {date:"25 Czerwca 2025",    size:"L", days:158},
-  {date:"2 Lipca 2025",       size:"L", days:98},
-  {date:"11 Lipca 2025",      size:"S", days:52},
-  {date:"18 Lipca 2025",      size:"M", days:95},
-  {date:"29 Lipca 2025",      size:"S", days:70},
-  {date:"3 Sierpnia 2025",    size:"M", days:95},
-  {date:"14 Sierpnia 2025",   size:"M", days:101},
-  {date:"21 Sierpnia 2025",   size:"M", days:57},
-  {date:"29 Sierpnia 2025",   size:"M", days:57},
-  {date:"8 Września 2025",    size:"S", days:53},
-  {date:"22 Września 2025",   size:"L", days:137},
-  {date:"4 Października 2025",size:"S", days:73},
-  {date:"12 Października 2025",size:"M",days:60},
-  {date:"19 Października 2025",size:"S",days:126},
-  {date:"27 Października 2025",size:"M",days:57},
-  {date:"5 Listopada 2025",   size:"L", days:124},
-  {date:"15 Listopada 2025",  size:"M", days:75},
-  {date:"25 Listopada 2025",  size:"M", days:89},
-  {date:"10 Grudnia 2025",    size:"S", days:44},
-];
-
-const COLORS = { S:'#3B82F6', M:'#8B5CF6', L:'#F59E0B' };
-const PCT_COLORS = { p50:'#22C55E', p85:'#F59E0B', p95:'#EF4444' };
-
-// parse Polish month names
-const MONTHS_PL = {'Stycznia':0,'Lutego':1,'Marca':2,'Kwietnia':3,'Maja':4,'Czerwca':5,
-  'Lipca':6,'Sierpnia':7,'Września':8,'Października':9,'Listopada':10,'Grudnia':11};
-
-function parseDate(str) {
-  const parts = str.trim().split(' ');
-  return new Date(parseInt(parts[2]), MONTHS_PL[parts[1]], parseInt(parts[0]));
-}
-
-const data = RAW.map(d => ({...d, ts: parseDate(d.date)}));
-data.sort((a,b) => a.ts - b.ts);
-
-const active = {S:true, M:true, L:true};
-
-function quantile(arr, q) {
-  const sorted = [...arr].sort((a,b)=>a-b);
-  const pos = (sorted.length - 1) * q;
-  const lo = Math.floor(pos), hi = Math.ceil(pos), frac = pos - lo;
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * frac;
-}
-
-function getStats(size) {
-  const vals = data.filter(d=>d.size===size).map(d=>d.days);
-  return {
-    n: vals.length,
-    p50: Math.round(quantile(vals, .50)),
-    p85: Math.round(quantile(vals, .85)),
-    p95: Math.round(quantile(vals, .95)),
-  };
-}
-
-const STATS = { S: getStats('S'), M: getStats('M'), L: getStats('L') };
-
-// Build KPI cards
-function buildKPI() {
-  const container = document.getElementById('kpi-row');
-  container.innerHTML = '';
-  ['S','M','L'].forEach(size => {
-    const st = STATS[size];
-    const card = document.createElement('div');
-    card.className = 'kpi-card' + (active[size] ? '' : ' dimmed');
-    card.id = `kpi-${size}`;
-    card.innerHTML = `
-      <div class="kpi-header">
-        <span class="kpi-dot" style="background:${COLORS[size]}"></span>
-        <span class="kpi-size-label" style="color:${COLORS[size]}">${size}</span>
-        <span class="kpi-count">${st.n} zadań</span>
+  <section class="lead-dashboard" aria-label="Dashboard czasów realizacji">
+    <header class="dashboard-header">
+      <div>
+        <h1>Czasy realizacji zadań</h1>
+        <p class="subtitle">Scatterplot według daty ukończenia, rozmiaru zadania i progów percentylowych 50 / 85 / 95.</p>
       </div>
-      <div class="kpi-percentiles">
-        <div class="kpi-row-item">
-          <span class="pct-label"><span class="pct-badge" style="background:${PCT_COLORS.p50}"></span>P50</span>
-          <span class="pct-value">${st.p50} dni</span>
+      <div class="controls" aria-label="Filtr rozmiaru zadania">
+        <div class="segmented" role="group" aria-label="Rozmiar">
+          <button class="size-button" type="button" data-size="ALL" aria-pressed="true">Wszystkie</button>
+          <button class="size-button" type="button" data-size="S" aria-pressed="false">S</button>
+          <button class="size-button" type="button" data-size="M" aria-pressed="false">M</button>
+          <button class="size-button" type="button" data-size="L" aria-pressed="false">L</button>
         </div>
-        <div class="kpi-row-item">
-          <span class="pct-label"><span class="pct-badge" style="background:${PCT_COLORS.p85}"></span>P85</span>
-          <span class="pct-value">${st.p85} dni</span>
-        </div>
-        <div class="kpi-row-item">
-          <span class="pct-label"><span class="pct-badge" style="background:${PCT_COLORS.p95}"></span>P95</span>
-          <span class="pct-value">${st.p95} dni</span>
-        </div>
-      </div>`;
-    container.appendChild(card);
-  });
-}
+      </div>
+    </header>
 
-// Draw SVG scatter
-const MARGIN = {top:16, right:20, bottom:48, left:52};
+    <div class="stats" aria-live="polite">
+      <div class="stat">
+        <div class="stat-label">Zadania</div>
+        <div class="stat-value" id="stat-count">0</div>
+        <div class="stat-note" id="stat-sizes">S 0 · M 0 · L 0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Mediana P50</div>
+        <div class="stat-value" id="stat-p50">0</div>
+        <div class="stat-note">dni realizacji</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Próg P85</div>
+        <div class="stat-value" id="stat-p85">0</div>
+        <div class="stat-note">górny zakres planowania</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Próg P95</div>
+        <div class="stat-value" id="stat-p95">0</div>
+        <div class="stat-note">ryzyko opóźnienia</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Zakres dat</div>
+        <div class="stat-value" id="stat-range">-</div>
+        <div class="stat-note" id="stat-max">maks. 0 dni</div>
+      </div>
+    </div>
 
-function buildChart() {
-  const svg = document.getElementById('scatter-svg');
-  const W = svg.parentElement.clientWidth - 40; // card padding
-  const H = Math.max(300, Math.min(440, W * 0.55));
-  const plotW = W - MARGIN.left - MARGIN.right;
-  const plotH = H - MARGIN.top - MARGIN.bottom;
+    <div class="chart-wrap">
+      <div class="chart-frame">
+        <svg id="chart" role="img" aria-labelledby="chart-title chart-desc" tabindex="0">
+          <title id="chart-title">Scatterplot czasów realizacji</title>
+          <desc id="chart-desc">Punkty pokazują czas realizacji względem daty ukończenia. Kolory oznaczają pasma percentylowe.</desc>
+        </svg>
+        <div class="empty-state" id="empty-state">Brak danych dla wybranego filtra</div>
+      </div>
+      <div class="legend" aria-label="Legenda">
+        <span class="legend-item"><span class="swatch" style="background: var(--green)"></span>do P50</span>
+        <span class="legend-item"><span class="swatch" style="background: var(--yellow)"></span>P50-P85</span>
+        <span class="legend-item"><span class="swatch" style="background: var(--orange)"></span>P85-P95</span>
+        <span class="legend-item"><span class="swatch" style="background: var(--red)"></span>powyżej P95</span>
+        <span class="legend-item"><span class="swatch" style="background: var(--blue)"></span>S</span>
+        <span class="legend-item"><span class="swatch" style="background: var(--violet)"></span>M</span>
+        <span class="legend-item"><span class="swatch" style="background: var(--teal)"></span>L</span>
+      </div>
+    </div>
 
-  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  svg.setAttribute('height', H);
-  svg.innerHTML = '';
+    <div class="source">Źródło: Lead Times - 2024-25.xlsx. Percentyle liczone metodą interpolacji liniowej dla aktualnie widocznych punktów.</div>
+  </section>
+  <div class="tooltip" id="tooltip"></div>
 
-  // Scales
-  const minDate = data[0].ts, maxDate = data[data.length-1].ts;
-  const dateRange = maxDate - minDate;
-  const allDays = data.map(d=>d.days);
-  const maxDays = Math.max(...allDays);
-  const yMax = Math.ceil(maxDays / 50) * 50 + 20;
+  <script>
+    const rawData = [{"id": 1, "completed": "2024-07-15", "completedLabel": "15.07.2024", "size": "S", "leadTime": 49.0}, {"id": 2, "completed": "2024-08-22", "completedLabel": "22.08.2024", "size": "S", "leadTime": 48.0}, {"id": 3, "completed": "2024-09-10", "completedLabel": "10.09.2024", "size": "S", "leadTime": 87.0}, {"id": 4, "completed": "2024-09-25", "completedLabel": "25.09.2024", "size": "M", "leadTime": 57.0}, {"id": 5, "completed": "2024-10-05", "completedLabel": "05.10.2024", "size": "M", "leadTime": 148.0}, {"id": 6, "completed": "2024-10-14", "completedLabel": "14.10.2024", "size": "S", "leadTime": 53.0}, {"id": 7, "completed": "2024-10-28", "completedLabel": "28.10.2024", "size": "S", "leadTime": 45.0}, {"id": 8, "completed": "2024-11-18", "completedLabel": "18.11.2024", "size": "M", "leadTime": 145.0}, {"id": 9, "completed": "2024-12-04", "completedLabel": "04.12.2024", "size": "L", "leadTime": 105.0}, {"id": 10, "completed": "2025-01-08", "completedLabel": "08.01.2025", "size": "S", "leadTime": 5.0}, {"id": 11, "completed": "2025-01-20", "completedLabel": "20.01.2025", "size": "L", "leadTime": 163.0}, {"id": 12, "completed": "2025-02-14", "completedLabel": "14.02.2025", "size": "S", "leadTime": 43.0}, {"id": 13, "completed": "2025-02-26", "completedLabel": "26.02.2025", "size": "M", "leadTime": 415.0}, {"id": 14, "completed": "2025-03-15", "completedLabel": "15.03.2025", "size": "L", "leadTime": 123.0}, {"id": 15, "completed": "2025-04-10", "completedLabel": "10.04.2025", "size": "M", "leadTime": 103.0}, {"id": 16, "completed": "2025-05-05", "completedLabel": "05.05.2025", "size": "L", "leadTime": 104.0}, {"id": 17, "completed": "2025-06-12", "completedLabel": "12.06.2025", "size": "L", "leadTime": 302.0}, {"id": 18, "completed": "2025-06-25", "completedLabel": "25.06.2025", "size": "L", "leadTime": 158.0}, {"id": 19, "completed": "2025-07-02", "completedLabel": "02.07.2025", "size": "L", "leadTime": 98.0}, {"id": 20, "completed": "2025-07-11", "completedLabel": "11.07.2025", "size": "S", "leadTime": 52.0}, {"id": 21, "completed": "2025-07-18", "completedLabel": "18.07.2025", "size": "M", "leadTime": 95.0}, {"id": 22, "completed": "2025-07-29", "completedLabel": "29.07.2025", "size": "S", "leadTime": 70.0}, {"id": 23, "completed": "2025-08-03", "completedLabel": "03.08.2025", "size": "M", "leadTime": 95.0}, {"id": 24, "completed": "2025-08-14", "completedLabel": "14.08.2025", "size": "M", "leadTime": 101.0}, {"id": 25, "completed": "2025-08-21", "completedLabel": "21.08.2025", "size": "M", "leadTime": 57.0}, {"id": 26, "completed": "2025-08-29", "completedLabel": "29.08.2025", "size": "M", "leadTime": 57.0}, {"id": 27, "completed": "2025-09-08", "completedLabel": "08.09.2025", "size": "S", "leadTime": 53.0}, {"id": 28, "completed": "2025-09-22", "completedLabel": "22.09.2025", "size": "L", "leadTime": 137.0}, {"id": 29, "completed": "2025-10-04", "completedLabel": "04.10.2025", "size": "S", "leadTime": 73.0}, {"id": 30, "completed": "2025-10-12", "completedLabel": "12.10.2025", "size": "M", "leadTime": 60.0}, {"id": 31, "completed": "2025-10-19", "completedLabel": "19.10.2025", "size": "S", "leadTime": 126.0}, {"id": 32, "completed": "2025-10-27", "completedLabel": "27.10.2025", "size": "M", "leadTime": 57.0}, {"id": 33, "completed": "2025-11-05", "completedLabel": "05.11.2025", "size": "L", "leadTime": 124.0}, {"id": 34, "completed": "2025-11-15", "completedLabel": "15.11.2025", "size": "M", "leadTime": 75.0}, {"id": 35, "completed": "2025-11-25", "completedLabel": "25.11.2025", "size": "M", "leadTime": 89.0}, {"id": 36, "completed": "2025-12-10", "completedLabel": "10.12.2025", "size": "S", "leadTime": 44.0}];
+    const sourceSummary = {"count": 36, "sizes": {"S": 13, "M": 14, "L": 9}, "p50": 88.0, "p85": 143.0, "p95": 197.8};
+    const data = rawData.map((item) => ({ ...item, date: new Date(item.completed + "T00:00:00") }));
+    const svg = document.getElementById("chart");
+    const tooltip = document.getElementById("tooltip");
+    const emptyState = document.getElementById("empty-state");
+    const buttons = Array.from(document.querySelectorAll(".size-button"));
+    const sizeColor = { S: "#2869d8", M: "#7252c7", L: "#148a9c" };
+    const bandColor = { p50: "#1f9d69", p85: "#d69d17", p95: "#e06a2d", tail: "#c43e49" };
+    let activeSize = "ALL";
 
-  function xScale(ts) { return MARGIN.left + ((ts - minDate) / dateRange) * plotW; }
-  function yScale(v)  { return MARGIN.top + plotH - (v / yMax) * plotH; }
+    const plDate = new Intl.DateTimeFormat("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric" });
+    const compactDate = new Intl.DateTimeFormat("pl-PL", { month: "short", year: "2-digit" });
 
-  const ns = 'http://www.w3.org/2000/svg';
-  function el(tag, attrs, parent) {
-    const e = document.createElementNS(ns, tag);
-    for(const [k,v] of Object.entries(attrs)) e.setAttribute(k,v);
-    if(parent) parent.appendChild(e);
-    return e;
-  }
+    function percentile(values, p) {
+      const sorted = values.slice().sort((a, b) => a - b);
+      if (!sorted.length) return null;
+      if (sorted.length === 1) return sorted[0];
+      const rank = (sorted.length - 1) * p;
+      const lower = Math.floor(rank);
+      const upper = Math.min(lower + 1, sorted.length - 1);
+      const weight = rank - lower;
+      return sorted[lower] * (1 - weight) + sorted[upper] * weight;
+    }
 
-  // Grid lines
-  const yTicks = [];
-  for(let v=0; v<=yMax; v+=50) yTicks.push(v);
+    function fmt(value, digits = 0) {
+      if (value === null || Number.isNaN(value)) return "-";
+      return Number(value).toLocaleString("pl-PL", { maximumFractionDigits: digits, minimumFractionDigits: digits });
+    }
 
-  yTicks.forEach(v => {
-    const y = yScale(v);
-    el('line', {x1:MARGIN.left, y1:y, x2:MARGIN.left+plotW, y2:y,
-      stroke:'#E4E8EF', 'stroke-width':'1'}, svg);
-    el('text', {x:MARGIN.left-8, y:y+4, 'text-anchor':'end',
-      fill:'#9CA3AF', 'font-size':'11', 'font-family':'system-ui'}, svg)
-      .textContent = v;
-  });
+    function classify(value, thresholds) {
+      if (value <= thresholds.p50) return "p50";
+      if (value <= thresholds.p85) return "p85";
+      if (value <= thresholds.p95) return "p95";
+      return "tail";
+    }
 
-  // X axis ticks — monthly
-  const tickDates = [];
-  let d = new Date(minDate); d.setDate(1);
-  while(d <= maxDate) {
-    tickDates.push(new Date(d));
-    d.setMonth(d.getMonth()+2);
-  }
-  const PLM = ['sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paź','lis','gru'];
-  tickDates.forEach(td => {
-    const x = xScale(td);
-    el('line', {x1:x, y1:MARGIN.top+plotH, x2:x, y2:MARGIN.top+plotH+5,
-      stroke:'#CBD5E1', 'stroke-width':'1'}, svg);
-    const t = el('text', {x, y:MARGIN.top+plotH+18, 'text-anchor':'middle',
-      fill:'#9CA3AF', 'font-size':'10', 'font-family':'system-ui'}, svg);
-    t.textContent = PLM[td.getMonth()]+' '+String(td.getFullYear()).slice(2);
-  });
+    function render() {
+      const visible = activeSize === "ALL" ? data : data.filter((item) => item.size === activeSize);
+      const leadTimes = visible.map((item) => item.leadTime);
+      const thresholds = {
+        p50: percentile(leadTimes, 0.50),
+        p85: percentile(leadTimes, 0.85),
+        p95: percentile(leadTimes, 0.95),
+      };
 
-  // Axis labels
-  const ylabel = el('text', {x:12, y:MARGIN.top+plotH/2,
-    'text-anchor':'middle', fill:'#6B7280', 'font-size':'11', 'font-family':'system-ui',
-    transform:`rotate(-90, 12, ${MARGIN.top+plotH/2})`}, svg);
-  ylabel.textContent = 'Czas realizacji (dni)';
+      updateStats(visible, thresholds);
+      drawChart(visible, thresholds);
+    }
 
-  // Percentile lines per active size
-  ['S','M','L'].forEach(size => {
-    if(!active[size]) return;
-    const st = STATS[size];
-    const pts = data.filter(d=>d.size===size);
-    const xMin = Math.min(...pts.map(d=>xScale(d.ts)));
-    const xMax = Math.max(...pts.map(d=>xScale(d.ts)));
+    function updateStats(visible, thresholds) {
+      const counts = { S: 0, M: 0, L: 0 };
+      visible.forEach((item) => counts[item.size] = (counts[item.size] || 0) + 1);
+      document.getElementById("stat-count").textContent = visible.length;
+      document.getElementById("stat-sizes").textContent = `S ${counts.S || 0} · M ${counts.M || 0} · L ${counts.L || 0}`;
+      document.getElementById("stat-p50").textContent = fmt(thresholds.p50, 1);
+      document.getElementById("stat-p85").textContent = fmt(thresholds.p85, 1);
+      document.getElementById("stat-p95").textContent = fmt(thresholds.p95, 1);
 
-    [['p50', st.p50], ['p85', st.p85], ['p95', st.p95]].forEach(([key, val]) => {
-      const y = yScale(val);
-      el('line', {x1:xMin, y1:y, x2:xMax, y2:y,
-        stroke:PCT_COLORS[key], 'stroke-width':'1.5',
-        'stroke-dasharray':'5,4', opacity:'0.7'}, svg);
-    });
-  });
+      if (!visible.length) {
+        document.getElementById("stat-range").textContent = "-";
+        document.getElementById("stat-max").textContent = "maks. 0 dni";
+        return;
+      }
 
-  // Dots
-  const tooltip = document.getElementById('tooltip');
-  data.forEach(d => {
-    const visible = active[d.size];
-    const cx = xScale(d.ts);
-    const cy = yScale(d.days);
+      const dates = visible.map((item) => item.date.getTime());
+      const minDate = new Date(Math.min(...dates));
+      const maxDate = new Date(Math.max(...dates));
+      const maxLead = Math.max(...visible.map((item) => item.leadTime));
+      document.getElementById("stat-range").textContent = `${compactDate.format(minDate)}-${compactDate.format(maxDate)}`;
+      document.getElementById("stat-max").textContent = `maks. ${fmt(maxLead, 0)} dni`;
+    }
 
-    const circle = el('circle', {
-      cx, cy, r: visible ? '5.5' : '4',
-      fill: visible ? COLORS[d.size] : '#CBD5E1',
-      stroke: visible ? '#fff' : 'transparent',
-      'stroke-width':'1.5',
-      opacity: visible ? '1' : '0.3',
-      style: 'cursor:pointer; transition: r .15s, opacity .2s'
-    }, svg);
+    function drawChart(visible, thresholds) {
+      const box = svg.getBoundingClientRect();
+      const width = Math.max(640, box.width || svg.clientWidth || 980);
+      const height = window.matchMedia("(max-width: 760px)").matches ? 470 : 520;
+      const margin = { top: 24, right: 24, bottom: 58, left: 58 };
+      const innerW = width - margin.left - margin.right;
+      const innerH = height - margin.top - margin.bottom;
+      svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      svg.innerHTML = `<title id="chart-title">Scatterplot czasów realizacji</title><desc id="chart-desc">Punkty pokazują czas realizacji względem daty ukończenia. Kolory oznaczają pasma percentylowe.</desc>`;
+      emptyState.style.display = visible.length ? "none" : "grid";
+      if (!visible.length) return;
 
-    if(visible) {
-      circle.addEventListener('mouseenter', (e) => {
-        circle.setAttribute('r','7.5');
-        const st = STATS[d.size];
-        const zone = d.days <= st.p50 ? '≤ P50' : d.days <= st.p85 ? 'P50–P85' : d.days <= st.p95 ? 'P85–P95' : '> P95';
-        tooltip.innerHTML = `<strong>${d.days} dni</strong> · Rozmiar ${d.size}<div class="tooltip-date">${d.date} · ${zone}</div>`;
-        tooltip.classList.add('visible');
+      const minTime = Math.min(...visible.map((item) => item.date.getTime()));
+      const maxTime = Math.max(...visible.map((item) => item.date.getTime()));
+      const minX = minTime === maxTime ? minTime - 86400000 : minTime;
+      const maxX = minTime === maxTime ? maxTime + 86400000 : maxTime;
+      const maxLead = Math.max(...visible.map((item) => item.leadTime), thresholds.p95 || 0);
+      const yTop = Math.ceil((maxLead * 1.12) / 25) * 25 || 100;
+
+      const x = (time) => margin.left + ((time - minX) / (maxX - minX)) * innerW;
+      const y = (value) => margin.top + innerH - (value / yTop) * innerH;
+
+      const g = addGroup("plot");
+      const ticksY = buildTicks(0, yTop, 5);
+      ticksY.forEach((tick) => {
+        const yy = y(tick);
+        line(g, margin.left, yy, margin.left + innerW, yy, "grid-line", "#d8dee9", 1, "3 5");
+        text(g, margin.left - 12, yy + 4, fmt(tick, 0), "end", "axis-label");
       });
-      circle.addEventListener('mousemove', (e) => {
-        tooltip.style.left = (e.clientX + 12) + 'px';
-        tooltip.style.top  = (e.clientY - 36) + 'px';
+
+      const dateTicks = buildDateTicks(minX, maxX, 5);
+      dateTicks.forEach((tick) => {
+        const xx = x(tick.getTime());
+        line(g, xx, margin.top, xx, margin.top + innerH, "grid-line", "#e4e8f0", 1, "3 5");
+        text(g, xx, margin.top + innerH + 28, compactDate.format(tick), "middle", "axis-label");
       });
-      circle.addEventListener('mouseleave', () => {
-        circle.setAttribute('r','5.5');
-        tooltip.classList.remove('visible');
+
+      line(g, margin.left, margin.top + innerH, margin.left + innerW, margin.top + innerH, "axis-line", "#aeb8c8", 1);
+      line(g, margin.left, margin.top, margin.left, margin.top + innerH, "axis-line", "#aeb8c8", 1);
+      text(g, margin.left + innerW / 2, height - 14, "Data ukończenia", "middle", "axis-title");
+      const yTitle = text(g, 15, margin.top + innerH / 2, "Czas realizacji (dni)", "middle", "axis-title");
+      yTitle.setAttribute("transform", `rotate(-90 15 ${margin.top + innerH / 2})`);
+
+      const bands = [
+        { from: 0, to: thresholds.p50, fill: "rgba(31, 157, 105, 0.08)" },
+        { from: thresholds.p50, to: thresholds.p85, fill: "rgba(214, 157, 23, 0.10)" },
+        { from: thresholds.p85, to: thresholds.p95, fill: "rgba(224, 106, 45, 0.10)" },
+        { from: thresholds.p95, to: yTop, fill: "rgba(196, 62, 73, 0.08)" },
+      ];
+      bands.forEach((band) => {
+        if (band.from === null || band.to === null || band.to <= band.from) return;
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("x", margin.left);
+        rect.setAttribute("y", y(band.to));
+        rect.setAttribute("width", innerW);
+        rect.setAttribute("height", Math.max(0, y(band.from) - y(band.to)));
+        rect.setAttribute("fill", band.fill);
+        g.insertBefore(rect, g.firstChild);
+      });
+
+      [
+        ["P50", thresholds.p50, bandColor.p50],
+        ["P85", thresholds.p85, bandColor.p85],
+        ["P95", thresholds.p95, bandColor.p95],
+      ].forEach(([label, value, color]) => {
+        if (value === null) return;
+        const yy = y(value);
+        line(g, margin.left, yy, margin.left + innerW, yy, "percentile-line", color, 2, "8 6");
+        const labelNode = text(g, margin.left + innerW - 8, yy - 8, `${label}: ${fmt(value, 1)} dni`, "end", "percentile-label");
+        labelNode.setAttribute("fill", color);
+      });
+
+      visible.forEach((item) => {
+        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        const band = classify(item.leadTime, thresholds);
+        circle.setAttribute("class", "point");
+        circle.setAttribute("cx", x(item.date.getTime()));
+        circle.setAttribute("cy", y(item.leadTime));
+        circle.setAttribute("r", item.size === "L" ? 7 : item.size === "M" ? 6 : 5);
+        circle.setAttribute("fill", bandColor[band]);
+        circle.setAttribute("data-size-color", sizeColor[item.size]);
+        circle.setAttribute("tabindex", "0");
+        circle.setAttribute("aria-label", `${item.completedLabel}, rozmiar ${item.size}, ${fmt(item.leadTime, 0)} dni`);
+        circle.style.filter = `drop-shadow(0 0 0 ${sizeColor[item.size]})`;
+        circle.addEventListener("mouseenter", (event) => showTooltip(event, item, band, thresholds));
+        circle.addEventListener("mousemove", moveTooltip);
+        circle.addEventListener("mouseleave", hideTooltip);
+        circle.addEventListener("focus", (event) => showTooltip(event, item, band, thresholds));
+        circle.addEventListener("blur", hideTooltip);
+        g.appendChild(circle);
+
+        const ring = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        ring.setAttribute("cx", x(item.date.getTime()));
+        ring.setAttribute("cy", y(item.leadTime));
+        ring.setAttribute("r", item.size === "L" ? 10 : item.size === "M" ? 9 : 8);
+        ring.setAttribute("fill", "none");
+        ring.setAttribute("stroke", sizeColor[item.size]);
+        ring.setAttribute("stroke-width", "1.5");
+        ring.setAttribute("opacity", "0.5");
+        g.insertBefore(ring, circle);
       });
     }
-  });
 
-  // Axes borders
-  el('line', {x1:MARGIN.left, y1:MARGIN.top, x2:MARGIN.left, y2:MARGIN.top+plotH,
-    stroke:'#CBD5E1', 'stroke-width':'1'}, svg);
-  el('line', {x1:MARGIN.left, y1:MARGIN.top+plotH, x2:MARGIN.left+plotW, y2:MARGIN.top+plotH,
-    stroke:'#CBD5E1', 'stroke-width':'1'}, svg);
-}
+    function addGroup(className) {
+      const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      g.setAttribute("class", className);
+      svg.appendChild(g);
+      return g;
+    }
 
-function toggleSize(size) {
-  active[size] = !active[size];
-  const btn = document.querySelector(`[data-size="${size}"]`);
-  if(active[size]) btn.classList.add(`active-${size}`);
-  else btn.classList.remove(`active-${size}`);
-  document.getElementById(`kpi-${size}`).classList.toggle('dimmed', !active[size]);
-  buildChart();
-}
+    function line(parent, x1, y1, x2, y2, className, stroke, width, dash = "") {
+      const node = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      node.setAttribute("x1", x1);
+      node.setAttribute("y1", y1);
+      node.setAttribute("x2", x2);
+      node.setAttribute("y2", y2);
+      node.setAttribute("class", className);
+      node.setAttribute("stroke", stroke);
+      node.setAttribute("stroke-width", width);
+      if (dash) node.setAttribute("stroke-dasharray", dash);
+      parent.appendChild(node);
+      return node;
+    }
 
-buildKPI();
-buildChart();
-window.addEventListener('resize', buildChart);
-</script>
+    function text(parent, x, y, value, anchor, className) {
+      const node = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      node.setAttribute("x", x);
+      node.setAttribute("y", y);
+      node.setAttribute("text-anchor", anchor);
+      node.setAttribute("class", className);
+      node.textContent = value;
+      parent.appendChild(node);
+      return node;
+    }
+
+    function buildTicks(min, max, count) {
+      const step = niceStep((max - min) / count);
+      const ticks = [];
+      for (let value = Math.ceil(min / step) * step; value <= max + step * 0.5; value += step) {
+        ticks.push(Math.round(value));
+      }
+      return ticks;
+    }
+
+    function niceStep(raw) {
+      if (!raw || raw <= 0) return 10;
+      const power = Math.pow(10, Math.floor(Math.log10(raw)));
+      const fraction = raw / power;
+      if (fraction <= 1) return power;
+      if (fraction <= 2) return 2 * power;
+      if (fraction <= 5) return 5 * power;
+      return 10 * power;
+    }
+
+    function buildDateTicks(minTime, maxTime, count) {
+      const span = maxTime - minTime;
+      return Array.from({ length: count }, (_, index) => new Date(minTime + (span * index) / (count - 1)));
+    }
+
+    function showTooltip(event, item, band, thresholds) {
+      const bandLabel = {
+        p50: "do P50",
+        p85: "P50-P85",
+        p95: "P85-P95",
+        tail: "powyżej P95",
+      }[band];
+      tooltip.innerHTML = `<strong>${plDate.format(item.date)} · rozmiar ${item.size}</strong>${fmt(item.leadTime, 1)} dni<br>Pasmo: ${bandLabel}`;
+      tooltip.style.opacity = "1";
+      moveTooltip(event);
+    }
+
+    function moveTooltip(event) {
+      const point = event.touches ? event.touches[0] : event;
+      tooltip.style.left = `${point.clientX}px`;
+      tooltip.style.top = `${point.clientY}px`;
+    }
+
+    function hideTooltip() {
+      tooltip.style.opacity = "0";
+    }
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => {
+        activeSize = button.dataset.size;
+        buttons.forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
+        render();
+      });
+    });
+
+    window.addEventListener("resize", () => window.requestAnimationFrame(render));
+    render();
+  </script>
 </body>
 </html>

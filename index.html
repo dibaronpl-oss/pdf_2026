@@ -1,1 +1,598 @@
-40 latek
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lead Times Dashboard 2024–25</title>
+<style>
+  :root {
+    --bg: #F8F9FB;
+    --surface: #FFFFFF;
+    --border: #E4E8EF;
+    --text-primary: #1A1D23;
+    --text-secondary: #6B7280;
+    --text-muted: #9CA3AF;
+
+    /* Size colors */
+    --s-color: #3B82F6;
+    --s-light: #DBEAFE;
+    --m-color: #8B5CF6;
+    --m-light: #EDE9FE;
+    --l-color: #F59E0B;
+    --l-light: #FEF3C7;
+
+    /* Percentile band colors */
+    --p50: #22C55E;
+    --p85: #F59E0B;
+    --p95: #EF4444;
+
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+    --shadow-md: 0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.05);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 32px 24px;
+  }
+
+  .page-header {
+    margin-bottom: 28px;
+  }
+
+  .page-header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+  }
+
+  .page-header p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+  }
+
+  /* Filter bar */
+  .filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  .filter-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-right: 4px;
+  }
+
+  .size-btn {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    transition: all .15s ease;
+    user-select: none;
+  }
+
+  .size-btn .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .size-btn.active-S {
+    border-color: var(--s-color);
+    background: var(--s-light);
+    color: var(--s-color);
+  }
+  .size-btn.active-M {
+    border-color: var(--m-color);
+    background: var(--m-light);
+    color: var(--m-color);
+  }
+  .size-btn.active-L {
+    border-color: var(--l-color);
+    background: var(--l-light);
+    color: #92400E;
+  }
+
+  .size-btn:hover:not(.active-S):not(.active-M):not(.active-L) {
+    background: var(--bg);
+    border-color: #9CA3AF;
+  }
+
+  /* KPI cards */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    box-shadow: var(--shadow);
+    transition: opacity .2s ease;
+  }
+
+  .kpi-card.dimmed { opacity: .35; }
+
+  .kpi-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .kpi-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  .kpi-size-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+
+  .kpi-count {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: auto;
+  }
+
+  .kpi-percentiles {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .kpi-row-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+  }
+
+  .pct-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .pct-badge {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+  }
+
+  .pct-value {
+    font-weight: 700;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Chart area */
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+    padding: 20px 20px 16px;
+  }
+
+  .chart-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+
+  .chart-subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+
+  #scatter-svg {
+    width: 100%;
+    overflow: visible;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+
+  .legend-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .legend-group-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .legend-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .legend-line {
+    width: 20px;
+    height: 2px;
+    flex-shrink: 0;
+    border-radius: 2px;
+  }
+
+  .legend-dash {
+    width: 20px;
+    height: 0;
+    border-top: 2px dashed;
+    flex-shrink: 0;
+  }
+
+  /* Tooltip */
+  .tooltip {
+    position: fixed;
+    background: var(--text-primary);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .12s ease;
+    z-index: 1000;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,.2);
+  }
+
+  .tooltip.visible { opacity: 1; }
+
+  .tooltip-date { color: #9CA3AF; font-size: 11px; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>Lead Times — 2024–25</h1>
+  <p>Czasy realizacji zadań według rozmiaru · percentyle 50 / 85 / 95</p>
+</div>
+
+<!-- Filters -->
+<div class="filter-bar">
+  <span class="filter-label">Rozmiar:</span>
+  <button class="size-btn active-S" data-size="S" onclick="toggleSize('S')">
+    <span class="dot" style="background:var(--s-color)"></span> S
+  </button>
+  <button class="size-btn active-M" data-size="M" onclick="toggleSize('M')">
+    <span class="dot" style="background:var(--m-color)"></span> M
+  </button>
+  <button class="size-btn active-L" data-size="L" onclick="toggleSize('L')">
+    <span class="dot" style="background:var(--l-color)"></span> L
+  </button>
+</div>
+
+<!-- KPI cards -->
+<div class="kpi-row" id="kpi-row">
+  <!-- filled by JS -->
+</div>
+
+<!-- Chart -->
+<div class="chart-card">
+  <div class="chart-title">Czas realizacji zadań</div>
+  <div class="chart-subtitle">Każdy punkt to jedno zadanie · linie przerywane = percentyle dla widocznych rozmiarów</div>
+  <svg id="scatter-svg"></svg>
+  <div class="legend">
+    <div class="legend-group">
+      <div class="legend-group-label">Rozmiar</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--s-color)"></span> S — small</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--m-color)"></span> M — medium</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--l-color)"></span> L — large</div>
+    </div>
+    <div class="legend-group">
+      <div class="legend-group-label">Percentyle</div>
+      <div class="legend-item"><span class="legend-dash" style="border-color:var(--p50)"></span> 50. percentyl (mediana)</div>
+      <div class="legend-item"><span class="legend-dash" style="border-color:var(--p85)"></span> 85. percentyl</div>
+      <div class="legend-item"><span class="legend-dash" style="border-color:var(--p95)"></span> 95. percentyl</div>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const RAW = [
+  {date:"15 Lipca 2024",      size:"S", days:49},
+  {date:"22 Sierpnia 2024",   size:"S", days:48},
+  {date:"10 Września 2024",   size:"S", days:87},
+  {date:"25 Września 2024",   size:"M", days:57},
+  {date:"5 Października 2024",size:"M", days:148},
+  {date:"14 Października 2024",size:"S",days:53},
+  {date:"28 Października 2024",size:"S",days:45},
+  {date:"18 Listopada 2024",  size:"M", days:145},
+  {date:"4 Grudnia 2024",     size:"L", days:105},
+  {date:"8 Stycznia 2025",    size:"S", days:5},
+  {date:"20 Stycznia 2025",   size:"L", days:163},
+  {date:"14 Lutego 2025",     size:"S", days:43},
+  {date:"26 Lutego 2025",     size:"M", days:415},
+  {date:"15 Marca 2025",      size:"L", days:123},
+  {date:"10 Kwietnia 2025",   size:"M", days:103},
+  {date:"5 Maja 2025",        size:"L", days:104},
+  {date:"12 Czerwca 2025",    size:"L", days:302},
+  {date:"25 Czerwca 2025",    size:"L", days:158},
+  {date:"2 Lipca 2025",       size:"L", days:98},
+  {date:"11 Lipca 2025",      size:"S", days:52},
+  {date:"18 Lipca 2025",      size:"M", days:95},
+  {date:"29 Lipca 2025",      size:"S", days:70},
+  {date:"3 Sierpnia 2025",    size:"M", days:95},
+  {date:"14 Sierpnia 2025",   size:"M", days:101},
+  {date:"21 Sierpnia 2025",   size:"M", days:57},
+  {date:"29 Sierpnia 2025",   size:"M", days:57},
+  {date:"8 Września 2025",    size:"S", days:53},
+  {date:"22 Września 2025",   size:"L", days:137},
+  {date:"4 Października 2025",size:"S", days:73},
+  {date:"12 Października 2025",size:"M",days:60},
+  {date:"19 Października 2025",size:"S",days:126},
+  {date:"27 Października 2025",size:"M",days:57},
+  {date:"5 Listopada 2025",   size:"L", days:124},
+  {date:"15 Listopada 2025",  size:"M", days:75},
+  {date:"25 Listopada 2025",  size:"M", days:89},
+  {date:"10 Grudnia 2025",    size:"S", days:44},
+];
+
+const COLORS = { S:'#3B82F6', M:'#8B5CF6', L:'#F59E0B' };
+const PCT_COLORS = { p50:'#22C55E', p85:'#F59E0B', p95:'#EF4444' };
+
+// parse Polish month names
+const MONTHS_PL = {'Stycznia':0,'Lutego':1,'Marca':2,'Kwietnia':3,'Maja':4,'Czerwca':5,
+  'Lipca':6,'Sierpnia':7,'Września':8,'Października':9,'Listopada':10,'Grudnia':11};
+
+function parseDate(str) {
+  const parts = str.trim().split(' ');
+  return new Date(parseInt(parts[2]), MONTHS_PL[parts[1]], parseInt(parts[0]));
+}
+
+const data = RAW.map(d => ({...d, ts: parseDate(d.date)}));
+data.sort((a,b) => a.ts - b.ts);
+
+const active = {S:true, M:true, L:true};
+
+function quantile(arr, q) {
+  const sorted = [...arr].sort((a,b)=>a-b);
+  const pos = (sorted.length - 1) * q;
+  const lo = Math.floor(pos), hi = Math.ceil(pos), frac = pos - lo;
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * frac;
+}
+
+function getStats(size) {
+  const vals = data.filter(d=>d.size===size).map(d=>d.days);
+  return {
+    n: vals.length,
+    p50: Math.round(quantile(vals, .50)),
+    p85: Math.round(quantile(vals, .85)),
+    p95: Math.round(quantile(vals, .95)),
+  };
+}
+
+const STATS = { S: getStats('S'), M: getStats('M'), L: getStats('L') };
+
+// Build KPI cards
+function buildKPI() {
+  const container = document.getElementById('kpi-row');
+  container.innerHTML = '';
+  ['S','M','L'].forEach(size => {
+    const st = STATS[size];
+    const card = document.createElement('div');
+    card.className = 'kpi-card' + (active[size] ? '' : ' dimmed');
+    card.id = `kpi-${size}`;
+    card.innerHTML = `
+      <div class="kpi-header">
+        <span class="kpi-dot" style="background:${COLORS[size]}"></span>
+        <span class="kpi-size-label" style="color:${COLORS[size]}">${size}</span>
+        <span class="kpi-count">${st.n} zadań</span>
+      </div>
+      <div class="kpi-percentiles">
+        <div class="kpi-row-item">
+          <span class="pct-label"><span class="pct-badge" style="background:${PCT_COLORS.p50}"></span>P50</span>
+          <span class="pct-value">${st.p50} dni</span>
+        </div>
+        <div class="kpi-row-item">
+          <span class="pct-label"><span class="pct-badge" style="background:${PCT_COLORS.p85}"></span>P85</span>
+          <span class="pct-value">${st.p85} dni</span>
+        </div>
+        <div class="kpi-row-item">
+          <span class="pct-label"><span class="pct-badge" style="background:${PCT_COLORS.p95}"></span>P95</span>
+          <span class="pct-value">${st.p95} dni</span>
+        </div>
+      </div>`;
+    container.appendChild(card);
+  });
+}
+
+// Draw SVG scatter
+const MARGIN = {top:16, right:20, bottom:48, left:52};
+
+function buildChart() {
+  const svg = document.getElementById('scatter-svg');
+  const W = svg.parentElement.clientWidth - 40; // card padding
+  const H = Math.max(300, Math.min(440, W * 0.55));
+  const plotW = W - MARGIN.left - MARGIN.right;
+  const plotH = H - MARGIN.top - MARGIN.bottom;
+
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('height', H);
+  svg.innerHTML = '';
+
+  // Scales
+  const minDate = data[0].ts, maxDate = data[data.length-1].ts;
+  const dateRange = maxDate - minDate;
+  const allDays = data.map(d=>d.days);
+  const maxDays = Math.max(...allDays);
+  const yMax = Math.ceil(maxDays / 50) * 50 + 20;
+
+  function xScale(ts) { return MARGIN.left + ((ts - minDate) / dateRange) * plotW; }
+  function yScale(v)  { return MARGIN.top + plotH - (v / yMax) * plotH; }
+
+  const ns = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(ns, tag);
+    for(const [k,v] of Object.entries(attrs)) e.setAttribute(k,v);
+    if(parent) parent.appendChild(e);
+    return e;
+  }
+
+  // Grid lines
+  const yTicks = [];
+  for(let v=0; v<=yMax; v+=50) yTicks.push(v);
+
+  yTicks.forEach(v => {
+    const y = yScale(v);
+    el('line', {x1:MARGIN.left, y1:y, x2:MARGIN.left+plotW, y2:y,
+      stroke:'#E4E8EF', 'stroke-width':'1'}, svg);
+    el('text', {x:MARGIN.left-8, y:y+4, 'text-anchor':'end',
+      fill:'#9CA3AF', 'font-size':'11', 'font-family':'system-ui'}, svg)
+      .textContent = v;
+  });
+
+  // X axis ticks — monthly
+  const tickDates = [];
+  let d = new Date(minDate); d.setDate(1);
+  while(d <= maxDate) {
+    tickDates.push(new Date(d));
+    d.setMonth(d.getMonth()+2);
+  }
+  const PLM = ['sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paź','lis','gru'];
+  tickDates.forEach(td => {
+    const x = xScale(td);
+    el('line', {x1:x, y1:MARGIN.top+plotH, x2:x, y2:MARGIN.top+plotH+5,
+      stroke:'#CBD5E1', 'stroke-width':'1'}, svg);
+    const t = el('text', {x, y:MARGIN.top+plotH+18, 'text-anchor':'middle',
+      fill:'#9CA3AF', 'font-size':'10', 'font-family':'system-ui'}, svg);
+    t.textContent = PLM[td.getMonth()]+' '+String(td.getFullYear()).slice(2);
+  });
+
+  // Axis labels
+  const ylabel = el('text', {x:12, y:MARGIN.top+plotH/2,
+    'text-anchor':'middle', fill:'#6B7280', 'font-size':'11', 'font-family':'system-ui',
+    transform:`rotate(-90, 12, ${MARGIN.top+plotH/2})`}, svg);
+  ylabel.textContent = 'Czas realizacji (dni)';
+
+  // Percentile lines per active size
+  ['S','M','L'].forEach(size => {
+    if(!active[size]) return;
+    const st = STATS[size];
+    const pts = data.filter(d=>d.size===size);
+    const xMin = Math.min(...pts.map(d=>xScale(d.ts)));
+    const xMax = Math.max(...pts.map(d=>xScale(d.ts)));
+
+    [['p50', st.p50], ['p85', st.p85], ['p95', st.p95]].forEach(([key, val]) => {
+      const y = yScale(val);
+      el('line', {x1:xMin, y1:y, x2:xMax, y2:y,
+        stroke:PCT_COLORS[key], 'stroke-width':'1.5',
+        'stroke-dasharray':'5,4', opacity:'0.7'}, svg);
+    });
+  });
+
+  // Dots
+  const tooltip = document.getElementById('tooltip');
+  data.forEach(d => {
+    const visible = active[d.size];
+    const cx = xScale(d.ts);
+    const cy = yScale(d.days);
+
+    const circle = el('circle', {
+      cx, cy, r: visible ? '5.5' : '4',
+      fill: visible ? COLORS[d.size] : '#CBD5E1',
+      stroke: visible ? '#fff' : 'transparent',
+      'stroke-width':'1.5',
+      opacity: visible ? '1' : '0.3',
+      style: 'cursor:pointer; transition: r .15s, opacity .2s'
+    }, svg);
+
+    if(visible) {
+      circle.addEventListener('mouseenter', (e) => {
+        circle.setAttribute('r','7.5');
+        const st = STATS[d.size];
+        const zone = d.days <= st.p50 ? '≤ P50' : d.days <= st.p85 ? 'P50–P85' : d.days <= st.p95 ? 'P85–P95' : '> P95';
+        tooltip.innerHTML = `<strong>${d.days} dni</strong> · Rozmiar ${d.size}<div class="tooltip-date">${d.date} · ${zone}</div>`;
+        tooltip.classList.add('visible');
+      });
+      circle.addEventListener('mousemove', (e) => {
+        tooltip.style.left = (e.clientX + 12) + 'px';
+        tooltip.style.top  = (e.clientY - 36) + 'px';
+      });
+      circle.addEventListener('mouseleave', () => {
+        circle.setAttribute('r','5.5');
+        tooltip.classList.remove('visible');
+      });
+    }
+  });
+
+  // Axes borders
+  el('line', {x1:MARGIN.left, y1:MARGIN.top, x2:MARGIN.left, y2:MARGIN.top+plotH,
+    stroke:'#CBD5E1', 'stroke-width':'1'}, svg);
+  el('line', {x1:MARGIN.left, y1:MARGIN.top+plotH, x2:MARGIN.left+plotW, y2:MARGIN.top+plotH,
+    stroke:'#CBD5E1', 'stroke-width':'1'}, svg);
+}
+
+function toggleSize(size) {
+  active[size] = !active[size];
+  const btn = document.querySelector(`[data-size="${size}"]`);
+  if(active[size]) btn.classList.add(`active-${size}`);
+  else btn.classList.remove(`active-${size}`);
+  document.getElementById(`kpi-${size}`).classList.toggle('dimmed', !active[size]);
+  buildChart();
+}
+
+buildKPI();
+buildChart();
+window.addEventListener('resize', buildChart);
+</script>
+</body>
+</html>

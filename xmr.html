@@ -126,11 +126,30 @@
       min-height: 540px;
     }
 
+    .chart-frame.mr-frame {
+      min-height: 340px;
+      border-top: 1px solid var(--line);
+      margin-top: 12px;
+      padding-top: 18px;
+    }
+
     svg {
       display: block;
       width: 100%;
       height: 540px;
       overflow: visible;
+    }
+
+    .mr-frame svg {
+      height: 320px;
+      margin-top: 12px;
+    }
+
+    .chart-kicker {
+      margin: 0 0 8px 44px;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 780;
     }
 
     .axis-label,
@@ -306,6 +325,15 @@
         height: 500px;
       }
 
+      .chart-frame.mr-frame {
+        min-height: 330px;
+      }
+
+      .mr-frame svg {
+        height: 310px;
+        margin-top: 12px;
+      }
+
       .legend {
         padding-left: 12px;
       }
@@ -360,6 +388,7 @@
 
     <section class="chart-area">
       <div class="chart-frame">
+        <p class="chart-kicker">X chart - Cycle Time</p>
         <svg id="chart" role="img" aria-labelledby="chart-title chart-desc" tabindex="0">
           <title id="chart-title">Process Behaviour Chart</title>
           <desc id="chart-desc">Wykres sekwencji cycle time z linią średniej, UNPL i LNPL.</desc>
@@ -373,15 +402,29 @@
         <span class="legend-item"><span class="dot" style="background: var(--green)"></span>typowa zmienność</span>
         <span class="legend-item"><span class="dot" style="background: var(--red)"></span>sygnał poza granicami</span>
       </div>
+      <div class="chart-frame mr-frame">
+        <p class="chart-kicker">MR chart - Moving Range</p>
+        <svg id="mr-chart" role="img" aria-labelledby="mr-chart-title mr-chart-desc" tabindex="0">
+          <title id="mr-chart-title">Moving Range Chart</title>
+          <desc id="mr-chart-desc">Wykres moving range między sąsiednimi zadaniami z linią średniego MR i górną granicą.</desc>
+        </svg>
+      </div>
+      <div class="legend" aria-label="Legenda Moving Range">
+        <span class="legend-item"><span class="swatch" style="background: var(--amber)"></span>moving range</span>
+        <span class="legend-item"><span class="swatch" style="background: var(--purple)"></span>średni MR</span>
+        <span class="legend-item"><span class="swatch" style="background: var(--red)"></span>górna granica MR</span>
+        <span class="legend-item"><span class="dot" style="background: var(--green)"></span>typowa zmienność MR</span>
+        <span class="legend-item"><span class="dot" style="background: var(--red)"></span>sygnał MR</span>
+      </div>
     </section>
 
     <section class="insight-strip">
-      <div class="insight"><strong>Jak czytać</strong>Punkty są kolejnymi zadaniami w sekwencji ID. Linia średniej pokazuje typowy poziom cycle time.</div>
+      <div class="insight"><strong>Jak czytać</strong>Górny panel to X chart dla cycle time. Dolny panel to MR chart, czyli zmiana między kolejnymi zadaniami.</div>
       <div class="insight"><strong>Granice procesu</strong>UNPL i LNPL pokazują zakres naturalnej zmienności. Dla cycle time dolna granica poniżej zera jest pokazana jako 0.</div>
-      <div class="insight"><strong>Interpretacja</strong>Punkty poza UNPL/LNPL traktuj jako sygnał wymagający sprawdzenia przyczyny, nie jako zwykłe wahanie procesu.</div>
+      <div class="insight"><strong>Interpretacja</strong>Punkty poza granicami X lub MR traktuj jako sygnał wymagający sprawdzenia przyczyny, nie jako zwykłe wahanie procesu.</div>
     </section>
 
-    <div class="source">Źródło: Team Cycle Time for XMR.xlsx. Obliczenia: średnia arytmetyczna, moving range między sąsiednimi punktami, granice procesu = średnia ± 2,66 × średni MR.</div>
+    <div class="source">Źródło: Team Cycle Time for XMR.xlsx. Obliczenia: średnia arytmetyczna, moving range między sąsiednimi punktami, granice X = średnia ± 2,66 × średni MR, górna granica MR = 3,268 × średni MR.</div>
   </main>
   <div class="tooltip" id="tooltip"></div>
 
@@ -391,8 +434,16 @@
       startedDate: new Date(item.started + "T00:00:00"),
       closedDate: new Date(item.closed + "T00:00:00")
     }));
-    const summary = {"count": 30, "mean": 23.8, "avgMr": 18.0, "unpl": 71.68, "lnpl": 0, "lnplRaw": -24.08, "min": 2.0, "max": 63.0, "median": 21.0, "p85": 45.9, "aboveUnpl": 0, "belowLnpl": 0, "dateStart": "2024-01-05", "dateEnd": "2024-04-09"};
+    const movingRanges = data.slice(1).map((item, index) => ({
+      id: item.id,
+      fromId: data[index].id,
+      toId: item.id,
+      value: Math.abs(item.cycleTime - data[index].cycleTime),
+      closedDate: item.closedDate
+    }));
+    const summary = {"count": 30, "mean": 23.8, "avgMr": 18.0, "unpl": 71.68, "lnpl": 0, "lnplRaw": -24.08, "min": 2.0, "max": 63.0, "median": 21.0, "p85": 45.9, "aboveUnpl": 0, "belowLnpl": 0, "mrUpper": 58.82, "maxMr": 57.0, "mrSignals": 0, "dateStart": "2024-01-05", "dateEnd": "2024-04-09"};
     const svg = document.getElementById("chart");
+    const mrSvg = document.getElementById("mr-chart");
     const tooltip = document.getElementById("tooltip");
     const plNumber = new Intl.NumberFormat("pl-PL", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
     const plDate = new Intl.DateTimeFormat("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric" });
@@ -416,12 +467,17 @@
       document.getElementById("stat-mr").textContent = fmt(summary.avgMr);
       document.getElementById("stat-unpl").textContent = fmt(summary.unpl);
       document.getElementById("stat-lnpl").textContent = fmt(summary.lnpl);
-      document.getElementById("stat-signals").textContent = summary.aboveUnpl + summary.belowLnpl;
+      document.getElementById("stat-signals").textContent = summary.aboveUnpl + summary.belowLnpl + summary.mrSignals;
       document.getElementById("stat-lnpl-note").textContent = summary.lnplRaw < 0 ? `surowo: ${fmt(summary.lnplRaw)} dnia` : "dolna naturalna granica";
     }
 
     function render() {
       updateStats();
+      renderXChart();
+      renderMrChart();
+    }
+
+    function renderXChart() {
       const box = svg.getBoundingClientRect();
       const width = Math.max(680, box.width || svg.clientWidth || 980);
       const height = window.matchMedia("(max-width: 640px)").matches ? 500 : 540;
@@ -491,6 +547,67 @@
       });
     }
 
+    function renderMrChart() {
+      const box = mrSvg.getBoundingClientRect();
+      const width = Math.max(680, box.width || mrSvg.clientWidth || 980);
+      const height = window.matchMedia("(max-width: 640px)").matches ? 310 : 320;
+      const margin = { top: 34, right: 120, bottom: 50, left: 62 };
+      const innerW = width - margin.left - margin.right;
+      const innerH = height - margin.top - margin.bottom;
+      mrSvg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      mrSvg.innerHTML = `<title id="mr-chart-title">Moving Range Chart</title><desc id="mr-chart-desc">Wykres moving range między sąsiednimi zadaniami z linią średniego MR i górną granicą.</desc>`;
+
+      const maxY = niceCeil(Math.max(summary.mrUpper, ...movingRanges.map((item) => item.value)) * 1.15);
+      const x = (index) => margin.left + (index / Math.max(1, movingRanges.length - 1)) * innerW;
+      const y = (value) => margin.top + innerH - (value / maxY) * innerH;
+      const plot = addGroupTo(mrSvg, "mr-plot");
+
+      buildTicks(0, maxY, 4).forEach((tick) => {
+        const yy = y(tick);
+        line(plot, margin.left, yy, margin.left + innerW, yy, "grid-line", "#d9e0ea", 1, "3 5");
+        text(plot, margin.left - 12, yy + 4, fmt(tick, 0), "end", "axis-label");
+      });
+
+      buildXTicks(data.length).filter((tick) => tick > 1).forEach((tick) => {
+        const xx = x(tick - 2);
+        line(plot, xx, margin.top, xx, margin.top + innerH, "grid-line", "#e6ebf2", 1, "3 5");
+        text(plot, xx, margin.top + innerH + 28, String(tick), "middle", "axis-label");
+      });
+
+      line(plot, margin.left, margin.top + innerH, margin.left + innerW, margin.top + innerH, "axis-line", "#aab5c4", 1);
+      line(plot, margin.left, margin.top, margin.left, margin.top + innerH, "axis-line", "#aab5c4", 1);
+      text(plot, margin.left + innerW / 2, height - 12, "Sekwencja MR (od ID 2)", "middle", "axis-title");
+      const yAxisTitle = text(plot, 16, margin.top + innerH / 2, "Moving range (dni)", "middle", "axis-title");
+      yAxisTitle.setAttribute("transform", `rotate(-90 16 ${margin.top + innerH / 2})`);
+
+      drawReferenceLine(plot, y(summary.mrUpper), "Górna MR", summary.mrUpper, colors.red, margin, innerW, true);
+      drawReferenceLine(plot, y(summary.avgMr), "Śr. MR", summary.avgMr, colors.purple, margin, innerW, false);
+
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("class", "data-line");
+      path.setAttribute("stroke", colors.amber);
+      path.setAttribute("d", movingRanges.map((item, index) => `${index === 0 ? "M" : "L"} ${x(index)} ${y(item.value)}`).join(" "));
+      plot.appendChild(path);
+
+      movingRanges.forEach((item, index) => {
+        const signal = item.value > summary.mrUpper;
+        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        circle.setAttribute("class", "point");
+        circle.setAttribute("cx", x(index));
+        circle.setAttribute("cy", y(item.value));
+        circle.setAttribute("r", signal ? 7 : 5.8);
+        circle.setAttribute("fill", signal ? colors.red : colors.green);
+        circle.setAttribute("tabindex", "0");
+        circle.setAttribute("aria-label", `MR do ID ${item.toId}, ${fmt(item.value)} dni`);
+        circle.addEventListener("mouseenter", (event) => showMrTooltip(event, item, signal));
+        circle.addEventListener("mousemove", moveTooltip);
+        circle.addEventListener("mouseleave", hideTooltip);
+        circle.addEventListener("focus", (event) => showMrTooltip(event, item, signal));
+        circle.addEventListener("blur", hideTooltip);
+        plot.appendChild(circle);
+      });
+    }
+
     function drawReferenceLine(parent, yy, label, value, color, margin, innerW, dashed) {
       line(parent, margin.left, yy, margin.left + innerW, yy, dashed ? "control-line" : "mean-line", color, 2, dashed ? "8 6" : "");
       const labelNode = text(parent, margin.left + innerW + 12, yy + 4, `${label}: ${fmt(value)}`, "start", "line-label");
@@ -502,6 +619,13 @@
       const node = document.createElementNS("http://www.w3.org/2000/svg", "g");
       node.setAttribute("class", className);
       svg.appendChild(node);
+      return node;
+    }
+
+    function addGroupTo(targetSvg, className) {
+      const node = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      node.setAttribute("class", className);
+      targetSvg.appendChild(node);
       return node;
     }
 
@@ -570,6 +694,12 @@
       moveTooltip(event);
     }
 
+    function showMrTooltip(event, item, signal) {
+      tooltip.innerHTML = `<strong>MR ID ${item.fromId} → ${item.toId} · ${fmt(item.value)} dni</strong>Zmiana cycle time między kolejnymi zadaniami.<br>Status: ${signal ? "sygnał MR" : "typowa zmienność MR"}`;
+      tooltip.style.opacity = "1";
+      moveTooltip(event);
+    }
+
     function moveTooltip(event) {
       const point = event.touches ? event.touches[0] : event;
       tooltip.style.left = `${point.clientX}px`;
@@ -585,5 +715,3 @@
   </script>
 </body>
 </html>
-
-

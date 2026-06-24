@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Process Behaviour Chart - Cycle Time XMR</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #182235;
+      --muted: #667085;
+      --line: #d9e0ea;
+      --line-strong: #aab5c4;
+      --blue: #2d6cdf;
+      --teal: #168a86;
+      --amber: #d78f13;
+      --red: #c9404a;
+      --purple: #7256c4;
+      --green: #239566;
+      --shadow: 0 14px 34px rgba(24, 34, 53, 0.09);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .dashboard {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 24px auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 22px;
+      align-items: start;
+      padding: 22px 24px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 24px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .formula {
+      min-width: 285px;
+      padding: 12px 14px;
+      border: 1px solid #e4cf71;
+      border-radius: 8px;
+      background: #fff6b8;
+      color: #4d5568;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .formula strong {
+      display: block;
+      margin-bottom: 3px;
+      color: var(--text);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 1px;
+      background: var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .stat {
+      min-height: 86px;
+      padding: 14px 16px;
+      background: #ffffff;
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 760;
+      text-transform: uppercase;
+    }
+
+    .stat-value {
+      margin-top: 7px;
+      font-size: 25px;
+      line-height: 1;
+      font-weight: 790;
+      letter-spacing: 0;
+    }
+
+    .stat-note {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .chart-area {
+      padding: 18px 18px 8px;
+    }
+
+    .chart-frame {
+      position: relative;
+      width: 100%;
+      min-height: 540px;
+    }
+
+    .chart-frame.mr-frame {
+      min-height: 340px;
+      border-top: 1px solid var(--line);
+      margin-top: 12px;
+      padding-top: 18px;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: 540px;
+      overflow: visible;
+    }
+
+    .mr-frame svg {
+      height: 320px;
+      margin-top: 12px;
+    }
+
+    .chart-kicker {
+      margin: 0 0 8px 44px;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 780;
+    }
+
+    .axis-label,
+    .axis-title,
+    .line-label {
+      fill: var(--muted);
+      font-size: 12px;
+    }
+
+    .axis-title {
+      font-weight: 760;
+      fill: var(--text);
+    }
+
+    .grid-line {
+      stroke: var(--line);
+      stroke-width: 1;
+      stroke-dasharray: 3 5;
+    }
+
+    .axis-line {
+      stroke: var(--line-strong);
+      stroke-width: 1;
+    }
+
+    .data-line {
+      fill: none;
+      stroke: var(--blue);
+      stroke-width: 2;
+      stroke-linejoin: round;
+      stroke-linecap: round;
+    }
+
+    .control-line {
+      stroke-width: 2;
+      stroke-dasharray: 8 6;
+    }
+
+    .mean-line {
+      stroke: var(--purple);
+      stroke-width: 2;
+    }
+
+    .point {
+      cursor: pointer;
+      stroke: #ffffff;
+      stroke-width: 2;
+    }
+
+    .point:hover,
+    .point:focus {
+      r: 8;
+      outline: 0;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 18px;
+      padding: 0 10px 16px 58px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      white-space: nowrap;
+    }
+
+    .swatch {
+      width: 14px;
+      height: 4px;
+      border-radius: 999px;
+      background: var(--line-strong);
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 0 1px var(--line-strong);
+    }
+
+    .insight-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1px;
+      background: var(--line);
+      border-top: 1px solid var(--line);
+    }
+
+    .insight {
+      padding: 14px 16px 16px;
+      background: #ffffff;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .insight strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    .tooltip {
+      position: fixed;
+      z-index: 20;
+      max-width: 270px;
+      pointer-events: none;
+      transform: translate(12px, -18px);
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 12px 28px rgba(24, 34, 53, 0.16);
+      font-size: 13px;
+      line-height: 1.42;
+      color: var(--text);
+      opacity: 0;
+    }
+
+    .tooltip strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .source {
+      padding: 0 24px 18px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .header {
+        grid-template-columns: 1fr;
+      }
+
+      .formula {
+        min-width: 0;
+      }
+
+      .stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .insight-strip {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .dashboard {
+        width: calc(100vw - 18px);
+        margin: 9px auto;
+      }
+
+      .header {
+        padding: 18px 16px 14px;
+      }
+
+      .chart-area {
+        padding: 10px 8px 6px;
+      }
+
+      .chart-frame,
+      svg {
+        min-height: 500px;
+        height: 500px;
+      }
+
+      .chart-frame.mr-frame {
+        min-height: 330px;
+      }
+
+      .mr-frame svg {
+        height: 310px;
+        margin-top: 12px;
+      }
+
+      .legend {
+        padding-left: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="dashboard" aria-label="Process Behaviour Chart dla Cycle Time">
+    <header class="header">
+      <div>
+        <h1>Process Behaviour Chart - Cycle Time XMR</h1>
+        <p class="subtitle">Sekwencja zakończonych zadań z linią średniej oraz naturalnymi granicami procesu.</p>
+      </div>
+      <div class="formula" aria-label="Założenia wykresu">
+        <strong>Założenia</strong>
+        Średnia arytmetyczna + zakresy typowej zmienności: UNPL/LNPL = średnia ± 2,66 × średni moving range.
+      </div>
+    </header>
+
+    <section class="stats" aria-live="polite">
+      <div class="stat">
+        <div class="stat-label">Zadania</div>
+        <div class="stat-value" id="stat-count">-</div>
+        <div class="stat-note" id="stat-range">-</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Średnia</div>
+        <div class="stat-value" id="stat-mean">-</div>
+        <div class="stat-note">dni cycle time</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Śr. moving range</div>
+        <div class="stat-value" id="stat-mr">-</div>
+        <div class="stat-note">zmienność między zadaniami</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">UNPL</div>
+        <div class="stat-value" id="stat-unpl">-</div>
+        <div class="stat-note">górna naturalna granica</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">LNPL</div>
+        <div class="stat-value" id="stat-lnpl">-</div>
+        <div class="stat-note" id="stat-lnpl-note">dolna naturalna granica</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Sygnały</div>
+        <div class="stat-value" id="stat-signals">-</div>
+        <div class="stat-note">poza naturalnymi granicami</div>
+      </div>
+    </section>
+
+    <section class="chart-area">
+      <div class="chart-frame">
+        <p class="chart-kicker">X chart - Cycle Time</p>
+        <svg id="chart" role="img" aria-labelledby="chart-title chart-desc" tabindex="0">
+          <title id="chart-title">Process Behaviour Chart</title>
+          <desc id="chart-desc">Wykres sekwencji cycle time z linią średniej, UNPL i LNPL.</desc>
+        </svg>
+      </div>
+      <div class="legend" aria-label="Legenda">
+        <span class="legend-item"><span class="swatch" style="background: var(--blue)"></span>cycle time</span>
+        <span class="legend-item"><span class="swatch" style="background: var(--purple)"></span>średnia</span>
+        <span class="legend-item"><span class="swatch" style="background: var(--red)"></span>UNPL</span>
+        <span class="legend-item"><span class="swatch" style="background: var(--teal)"></span>LNPL</span>
+        <span class="legend-item"><span class="dot" style="background: var(--green)"></span>typowa zmienność</span>
+        <span class="legend-item"><span class="dot" style="background: var(--red)"></span>sygnał poza granicami</span>
+      </div>
+      <div class="chart-frame mr-frame">
+        <p class="chart-kicker">MR chart - Moving Range</p>
+        <svg id="mr-chart" role="img" aria-labelledby="mr-chart-title mr-chart-desc" tabindex="0">
+          <title id="mr-chart-title">Moving Range Chart</title>
+          <desc id="mr-chart-desc">Wykres moving range między sąsiednimi zadaniami z linią średniego MR i górną granicą.</desc>
+        </svg>
+      </div>
+      <div class="legend" aria-label="Legenda Moving Range">
+        <span class="legend-item"><span class="swatch" style="background: var(--amber)"></span>moving range</span>
+        <span class="legend-item"><span class="swatch" style="background: var(--purple)"></span>średni MR</span>
+        <span class="legend-item"><span class="swatch" style="background: var(--red)"></span>górna granica MR</span>
+        <span class="legend-item"><span class="dot" style="background: var(--green)"></span>typowa zmienność MR</span>
+        <span class="legend-item"><span class="dot" style="background: var(--red)"></span>sygnał MR</span>
+      </div>
+    </section>
+
+    <section class="insight-strip">
+      <div class="insight"><strong>Jak czytać</strong>Górny panel to X chart dla cycle time. Dolny panel to MR chart, czyli zmiana między kolejnymi zadaniami.</div>
+      <div class="insight"><strong>Granice procesu</strong>UNPL i LNPL pokazują zakres naturalnej zmienności. Dla cycle time dolna granica poniżej zera jest pokazana jako 0.</div>
+      <div class="insight"><strong>Interpretacja</strong>Punkty poza granicami X lub MR traktuj jako sygnał wymagający sprawdzenia przyczyny, nie jako zwykłe wahanie procesu.</div>
+    </section>
+
+    <div class="source">Źródło: Team Cycle Time for XMR.xlsx. Obliczenia: średnia arytmetyczna, moving range między sąsiednimi punktami, granice X = średnia ± 2,66 × średni MR, górna granica MR = 3,268 × średni MR.</div>
+  </main>
+  <div class="tooltip" id="tooltip"></div>
+
+  <script>
+    const data = [{"id": 1, "started": "2023-11-28", "startedLabel": "28.11.2023", "closed": "2024-01-05", "closedLabel": "05.01.2024", "cycleTime": 38.0}, {"id": 2, "started": "2023-12-20", "startedLabel": "20.12.2023", "closed": "2024-01-11", "closedLabel": "11.01.2024", "cycleTime": 24.0}, {"id": 3, "started": "2024-01-02", "startedLabel": "02.01.2024", "closed": "2024-01-16", "closedLabel": "16.01.2024", "cycleTime": 14.0}, {"id": 4, "started": "2024-01-10", "startedLabel": "10.01.2024", "closed": "2024-01-17", "closedLabel": "17.01.2024", "cycleTime": 9.0}, {"id": 5, "started": "2024-01-18", "startedLabel": "18.01.2024", "closed": "2024-01-22", "closedLabel": "22.01.2024", "cycleTime": 4.0}, {"id": 6, "started": "2024-01-03", "startedLabel": "03.01.2024", "closed": "2024-01-26", "closedLabel": "26.01.2024", "cycleTime": 25.0}, {"id": 7, "started": "2024-01-10", "startedLabel": "10.01.2024", "closed": "2024-01-29", "closedLabel": "29.01.2024", "cycleTime": 19.0}, {"id": 8, "started": "2023-12-19", "startedLabel": "19.12.2023", "closed": "2024-02-06", "closedLabel": "06.02.2024", "cycleTime": 51.0}, {"id": 9, "started": "2023-12-26", "startedLabel": "26.12.2023", "closed": "2024-02-12", "closedLabel": "12.02.2024", "cycleTime": 48.0}, {"id": 10, "started": "2024-02-02", "startedLabel": "02.02.2024", "closed": "2024-02-15", "closedLabel": "15.02.2024", "cycleTime": 15.0}, {"id": 11, "started": "2024-01-26", "startedLabel": "26.01.2024", "closed": "2024-02-17", "closedLabel": "17.02.2024", "cycleTime": 22.0}, {"id": 12, "started": "2024-01-09", "startedLabel": "09.01.2024", "closed": "2024-02-18", "closedLabel": "18.02.2024", "cycleTime": 42.0}, {"id": 13, "started": "2024-02-02", "startedLabel": "02.02.2024", "closed": "2024-02-19", "closedLabel": "19.02.2024", "cycleTime": 17.0}, {"id": 14, "started": "2024-02-16", "startedLabel": "16.02.2024", "closed": "2024-02-21", "closedLabel": "21.02.2024", "cycleTime": 7.0}, {"id": 15, "started": "2024-02-23", "startedLabel": "23.02.2024", "closed": "2024-02-28", "closedLabel": "28.02.2024", "cycleTime": 5.0}, {"id": 16, "started": "2024-02-20", "startedLabel": "20.02.2024", "closed": "2024-03-12", "closedLabel": "12.03.2024", "cycleTime": 20.0}, {"id": 17, "started": "2024-01-12", "startedLabel": "12.01.2024", "closed": "2024-03-14", "closedLabel": "14.03.2024", "cycleTime": 63.0}, {"id": 18, "started": "2024-03-13", "startedLabel": "13.03.2024", "closed": "2024-03-19", "closedLabel": "19.03.2024", "cycleTime": 6.0}, {"id": 19, "started": "2024-01-25", "startedLabel": "25.01.2024", "closed": "2024-03-20", "closedLabel": "20.03.2024", "cycleTime": 56.0}, {"id": 20, "started": "2024-02-28", "startedLabel": "28.02.2024", "closed": "2024-03-22", "closedLabel": "22.03.2024", "cycleTime": 24.0}, {"id": 21, "started": "2024-02-28", "startedLabel": "28.02.2024", "closed": "2024-03-22", "closedLabel": "22.03.2024", "cycleTime": 22.0}, {"id": 22, "started": "2024-02-06", "startedLabel": "06.02.2024", "closed": "2024-03-26", "closedLabel": "26.03.2024", "cycleTime": 50.0}, {"id": 23, "started": "2024-03-21", "startedLabel": "21.03.2024", "closed": "2024-03-27", "closedLabel": "27.03.2024", "cycleTime": 8.0}, {"id": 24, "started": "2024-03-26", "startedLabel": "26.03.2024", "closed": "2024-03-28", "closedLabel": "28.03.2024", "cycleTime": 2.0}, {"id": 25, "started": "2024-03-28", "startedLabel": "28.03.2024", "closed": "2024-03-29", "closedLabel": "29.03.2024", "cycleTime": 3.0}, {"id": 26, "started": "2024-03-22", "startedLabel": "22.03.2024", "closed": "2024-03-30", "closedLabel": "30.03.2024", "cycleTime": 8.0}, {"id": 27, "started": "2024-02-26", "startedLabel": "26.02.2024", "closed": "2024-04-01", "closedLabel": "01.04.2024", "cycleTime": 36.0}, {"id": 28, "started": "2024-03-06", "startedLabel": "06.03.2024", "closed": "2024-04-02", "closedLabel": "02.04.2024", "cycleTime": 27.0}, {"id": 29, "started": "2024-03-13", "startedLabel": "13.03.2024", "closed": "2024-04-09", "closedLabel": "09.04.2024", "cycleTime": 29.0}, {"id": 30, "started": "2024-03-20", "startedLabel": "20.03.2024", "closed": "2024-04-09", "closedLabel": "09.04.2024", "cycleTime": 20.0}].map((item) => ({
+      ...item,
+      startedDate: new Date(item.started + "T00:00:00"),
+      closedDate: new Date(item.closed + "T00:00:00")
+    }));
+    const movingRanges = data.slice(1).map((item, index) => ({
+      id: item.id,
+      fromId: data[index].id,
+      toId: item.id,
+      value: Math.abs(item.cycleTime - data[index].cycleTime),
+      closedDate: item.closedDate
+    }));
+    const summary = {"count": 30, "mean": 23.8, "avgMr": 18.0, "unpl": 71.68, "lnpl": 0, "lnplRaw": -24.08, "min": 2.0, "max": 63.0, "median": 21.0, "p85": 45.9, "aboveUnpl": 0, "belowLnpl": 0, "mrUpper": 58.82, "maxMr": 57.0, "mrSignals": 0, "dateStart": "2024-01-05", "dateEnd": "2024-04-09"};
+    const svg = document.getElementById("chart");
+    const mrSvg = document.getElementById("mr-chart");
+    const tooltip = document.getElementById("tooltip");
+    const plNumber = new Intl.NumberFormat("pl-PL", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+    const plDate = new Intl.DateTimeFormat("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric" });
+    const colors = {
+      blue: "#2d6cdf",
+      teal: "#168a86",
+      red: "#c9404a",
+      purple: "#7256c4",
+      green: "#239566",
+      amber: "#d78f13"
+    };
+
+    function fmt(value, digits = 1) {
+      return Number(value).toLocaleString("pl-PL", { maximumFractionDigits: digits, minimumFractionDigits: digits });
+    }
+
+    function updateStats() {
+      document.getElementById("stat-count").textContent = summary.count;
+      document.getElementById("stat-range").textContent = `${plDate.format(new Date(summary.dateStart + "T00:00:00"))}-${plDate.format(new Date(summary.dateEnd + "T00:00:00"))}`;
+      document.getElementById("stat-mean").textContent = fmt(summary.mean);
+      document.getElementById("stat-mr").textContent = fmt(summary.avgMr);
+      document.getElementById("stat-unpl").textContent = fmt(summary.unpl);
+      document.getElementById("stat-lnpl").textContent = fmt(summary.lnpl);
+      document.getElementById("stat-signals").textContent = summary.aboveUnpl + summary.belowLnpl + summary.mrSignals;
+      document.getElementById("stat-lnpl-note").textContent = summary.lnplRaw < 0 ? `surowo: ${fmt(summary.lnplRaw)} dnia` : "dolna naturalna granica";
+    }
+
+    function render() {
+      updateStats();
+      renderXChart();
+      renderMrChart();
+    }
+
+    function renderXChart() {
+      const box = svg.getBoundingClientRect();
+      const width = Math.max(680, box.width || svg.clientWidth || 980);
+      const height = window.matchMedia("(max-width: 640px)").matches ? 500 : 540;
+      const margin = { top: 26, right: 108, bottom: 58, left: 62 };
+      const innerW = width - margin.left - margin.right;
+      const innerH = height - margin.top - margin.bottom;
+      svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      svg.innerHTML = `<title id="chart-title">Process Behaviour Chart</title><desc id="chart-desc">Wykres sekwencji cycle time z linią średniej, UNPL i LNPL.</desc>`;
+
+      const maxY = niceCeil(Math.max(summary.unpl, ...data.map((item) => item.cycleTime)) * 1.12);
+      const minY = 0;
+      const x = (id) => margin.left + ((id - 1) / Math.max(1, data.length - 1)) * innerW;
+      const y = (value) => margin.top + innerH - ((value - minY) / (maxY - minY)) * innerH;
+      const plot = addGroup("plot");
+
+      buildTicks(0, maxY, 6).forEach((tick) => {
+        const yy = y(tick);
+        line(plot, margin.left, yy, margin.left + innerW, yy, "grid-line", "#d9e0ea", 1, "3 5");
+        text(plot, margin.left - 12, yy + 4, fmt(tick, 0), "end", "axis-label");
+      });
+
+      buildXTicks(data.length).forEach((tick) => {
+        const xx = x(tick);
+        line(plot, xx, margin.top, xx, margin.top + innerH, "grid-line", "#e6ebf2", 1, "3 5");
+        text(plot, xx, margin.top + innerH + 28, String(tick), "middle", "axis-label");
+      });
+
+      line(plot, margin.left, margin.top + innerH, margin.left + innerW, margin.top + innerH, "axis-line", "#aab5c4", 1);
+      line(plot, margin.left, margin.top, margin.left, margin.top + innerH, "axis-line", "#aab5c4", 1);
+      text(plot, margin.left + innerW / 2, height - 14, "Sekwencja zadań (ID)", "middle", "axis-title");
+      const yAxisTitle = text(plot, 16, margin.top + innerH / 2, "Cycle time (dni)", "middle", "axis-title");
+      yAxisTitle.setAttribute("transform", `rotate(-90 16 ${margin.top + innerH / 2})`);
+
+      const band = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      band.setAttribute("x", margin.left);
+      band.setAttribute("y", y(summary.unpl));
+      band.setAttribute("width", innerW);
+      band.setAttribute("height", Math.max(0, y(summary.lnpl) - y(summary.unpl)));
+      band.setAttribute("fill", "rgba(45, 108, 223, 0.07)");
+      plot.insertBefore(band, plot.firstChild);
+
+      drawReferenceLine(plot, y(summary.unpl), "UNPL", summary.unpl, colors.red, margin, innerW, true);
+      drawReferenceLine(plot, y(summary.mean), "Średnia", summary.mean, colors.purple, margin, innerW, false);
+      drawReferenceLine(plot, y(summary.lnpl), "LNPL", summary.lnpl, colors.teal, margin, innerW, true);
+
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("class", "data-line");
+      path.setAttribute("d", data.map((item, index) => `${index === 0 ? "M" : "L"} ${x(index + 1)} ${y(item.cycleTime)}`).join(" "));
+      plot.appendChild(path);
+
+      data.forEach((item, index) => {
+        const signal = item.cycleTime > summary.unpl || item.cycleTime < summary.lnplRaw;
+        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        circle.setAttribute("class", "point");
+        circle.setAttribute("cx", x(index + 1));
+        circle.setAttribute("cy", y(item.cycleTime));
+        circle.setAttribute("r", signal ? 7 : 5.8);
+        circle.setAttribute("fill", signal ? colors.red : colors.green);
+        circle.setAttribute("tabindex", "0");
+        circle.setAttribute("aria-label", `ID ${item.id}, cycle time ${fmt(item.cycleTime)} dni`);
+        circle.addEventListener("mouseenter", (event) => showTooltip(event, item, index, signal));
+        circle.addEventListener("mousemove", moveTooltip);
+        circle.addEventListener("mouseleave", hideTooltip);
+        circle.addEventListener("focus", (event) => showTooltip(event, item, index, signal));
+        circle.addEventListener("blur", hideTooltip);
+        plot.appendChild(circle);
+      });
+    }
+
+    function renderMrChart() {
+      const box = mrSvg.getBoundingClientRect();
+      const width = Math.max(680, box.width || mrSvg.clientWidth || 980);
+      const height = window.matchMedia("(max-width: 640px)").matches ? 310 : 320;
+      const margin = { top: 34, right: 120, bottom: 50, left: 62 };
+      const innerW = width - margin.left - margin.right;
+      const innerH = height - margin.top - margin.bottom;
+      mrSvg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      mrSvg.innerHTML = `<title id="mr-chart-title">Moving Range Chart</title><desc id="mr-chart-desc">Wykres moving range między sąsiednimi zadaniami z linią średniego MR i górną granicą.</desc>`;
+
+      const maxY = niceCeil(Math.max(summary.mrUpper, ...movingRanges.map((item) => item.value)) * 1.15);
+      const x = (index) => margin.left + (index / Math.max(1, movingRanges.length - 1)) * innerW;
+      const y = (value) => margin.top + innerH - (value / maxY) * innerH;
+      const plot = addGroupTo(mrSvg, "mr-plot");
+
+      buildTicks(0, maxY, 4).forEach((tick) => {
+        const yy = y(tick);
+        line(plot, margin.left, yy, margin.left + innerW, yy, "grid-line", "#d9e0ea", 1, "3 5");
+        text(plot, margin.left - 12, yy + 4, fmt(tick, 0), "end", "axis-label");
+      });
+
+      buildXTicks(data.length).filter((tick) => tick > 1).forEach((tick) => {
+        const xx = x(tick - 2);
+        line(plot, xx, margin.top, xx, margin.top + innerH, "grid-line", "#e6ebf2", 1, "3 5");
+        text(plot, xx, margin.top + innerH + 28, String(tick), "middle", "axis-label");
+      });
+
+      line(plot, margin.left, margin.top + innerH, margin.left + innerW, margin.top + innerH, "axis-line", "#aab5c4", 1);
+      line(plot, margin.left, margin.top, margin.left, margin.top + innerH, "axis-line", "#aab5c4", 1);
+      text(plot, margin.left + innerW / 2, height - 12, "Sekwencja MR (od ID 2)", "middle", "axis-title");
+      const yAxisTitle = text(plot, 16, margin.top + innerH / 2, "Moving range (dni)", "middle", "axis-title");
+      yAxisTitle.setAttribute("transform", `rotate(-90 16 ${margin.top + innerH / 2})`);
+
+      drawReferenceLine(plot, y(summary.mrUpper), "Górna MR", summary.mrUpper, colors.red, margin, innerW, true);
+      drawReferenceLine(plot, y(summary.avgMr), "Śr. MR", summary.avgMr, colors.purple, margin, innerW, false);
+
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("class", "data-line");
+      path.setAttribute("stroke", colors.amber);
+      path.setAttribute("d", movingRanges.map((item, index) => `${index === 0 ? "M" : "L"} ${x(index)} ${y(item.value)}`).join(" "));
+      plot.appendChild(path);
+
+      movingRanges.forEach((item, index) => {
+        const signal = item.value > summary.mrUpper;
+        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        circle.setAttribute("class", "point");
+        circle.setAttribute("cx", x(index));
+        circle.setAttribute("cy", y(item.value));
+        circle.setAttribute("r", signal ? 7 : 5.8);
+        circle.setAttribute("fill", signal ? colors.red : colors.green);
+        circle.setAttribute("tabindex", "0");
+        circle.setAttribute("aria-label", `MR do ID ${item.toId}, ${fmt(item.value)} dni`);
+        circle.addEventListener("mouseenter", (event) => showMrTooltip(event, item, signal));
+        circle.addEventListener("mousemove", moveTooltip);
+        circle.addEventListener("mouseleave", hideTooltip);
+        circle.addEventListener("focus", (event) => showMrTooltip(event, item, signal));
+        circle.addEventListener("blur", hideTooltip);
+        plot.appendChild(circle);
+      });
+    }
+
+    function drawReferenceLine(parent, yy, label, value, color, margin, innerW, dashed) {
+      line(parent, margin.left, yy, margin.left + innerW, yy, dashed ? "control-line" : "mean-line", color, 2, dashed ? "8 6" : "");
+      const labelNode = text(parent, margin.left + innerW + 12, yy + 4, `${label}: ${fmt(value)}`, "start", "line-label");
+      labelNode.setAttribute("fill", color);
+      labelNode.setAttribute("font-weight", "760");
+    }
+
+    function addGroup(className) {
+      const node = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      node.setAttribute("class", className);
+      svg.appendChild(node);
+      return node;
+    }
+
+    function addGroupTo(targetSvg, className) {
+      const node = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      node.setAttribute("class", className);
+      targetSvg.appendChild(node);
+      return node;
+    }
+
+    function line(parent, x1, y1, x2, y2, className, stroke, width, dash = "") {
+      const node = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      node.setAttribute("x1", x1);
+      node.setAttribute("y1", y1);
+      node.setAttribute("x2", x2);
+      node.setAttribute("y2", y2);
+      node.setAttribute("class", className);
+      node.setAttribute("stroke", stroke);
+      node.setAttribute("stroke-width", width);
+      if (dash) node.setAttribute("stroke-dasharray", dash);
+      parent.appendChild(node);
+      return node;
+    }
+
+    function text(parent, x, y, value, anchor, className) {
+      const node = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      node.setAttribute("x", x);
+      node.setAttribute("y", y);
+      node.setAttribute("text-anchor", anchor);
+      node.setAttribute("class", className);
+      node.textContent = value;
+      parent.appendChild(node);
+      return node;
+    }
+
+    function niceCeil(value) {
+      const step = value <= 80 ? 10 : value <= 160 ? 20 : 50;
+      return Math.ceil(value / step) * step;
+    }
+
+    function buildTicks(min, max, count) {
+      const step = niceStep((max - min) / count);
+      const ticks = [];
+      for (let value = Math.ceil(min / step) * step; value <= max + step * 0.5; value += step) {
+        ticks.push(value);
+      }
+      return ticks;
+    }
+
+    function niceStep(raw) {
+      if (!raw || raw <= 0) return 10;
+      const power = Math.pow(10, Math.floor(Math.log10(raw)));
+      const fraction = raw / power;
+      if (fraction <= 1) return power;
+      if (fraction <= 2) return 2 * power;
+      if (fraction <= 5) return 5 * power;
+      return 10 * power;
+    }
+
+    function buildXTicks(count) {
+      const ticks = [];
+      const step = count <= 15 ? 1 : 5;
+      for (let value = 1; value <= count; value += step) ticks.push(value);
+      if (ticks[ticks.length - 1] !== count) ticks.push(count);
+      return ticks;
+    }
+
+    function showTooltip(event, item, index, signal) {
+      const previous = index > 0 ? data[index - 1].cycleTime : null;
+      const mr = previous === null ? "-" : fmt(Math.abs(item.cycleTime - previous));
+      tooltip.innerHTML = `<strong>ID ${item.id} · ${fmt(item.cycleTime)} dni</strong>Zamknięte: ${plDate.format(item.closedDate)}<br>Start: ${plDate.format(item.startedDate)}<br>Moving range: ${mr}<br>Status: ${signal ? "sygnał poza granicami" : "typowa zmienność"}`;
+      tooltip.style.opacity = "1";
+      moveTooltip(event);
+    }
+
+    function showMrTooltip(event, item, signal) {
+      tooltip.innerHTML = `<strong>MR ID ${item.fromId} → ${item.toId} · ${fmt(item.value)} dni</strong>Zmiana cycle time między kolejnymi zadaniami.<br>Status: ${signal ? "sygnał MR" : "typowa zmienność MR"}`;
+      tooltip.style.opacity = "1";
+      moveTooltip(event);
+    }
+
+    function moveTooltip(event) {
+      const point = event.touches ? event.touches[0] : event;
+      tooltip.style.left = `${point.clientX}px`;
+      tooltip.style.top = `${point.clientY}px`;
+    }
+
+    function hideTooltip() {
+      tooltip.style.opacity = "0";
+    }
+
+    window.addEventListener("resize", () => window.requestAnimationFrame(render));
+    render();
+  </script>
+</body>
+</html>

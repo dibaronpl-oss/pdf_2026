@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monte Carlo · Prognoza Epików</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  --ink:     #1A1D24;
+  --ink-2:   #454A57;
+  --ink-3:   #8B909E;
+  --paper:   #F6F7F9;
+  --white:   #FFFFFF;
+  --border:  #E1E5ED;
+  --border-2:#C5CBDA;
+
+  --teal:    #0D9488; --teal-bg: #CCFBF1; --teal-bd: #5EEAD4;
+  --amber:   #C2770A; --amber-bg:#FEF3C7; --amber-bd:#FCD34D;
+  --rose:    #BE123C; --rose-bg: #FFE4E6; --rose-bd: #FDA4AF;
+  --indigo:  #4338CA; --indigo-bg:#E0E7FF;
+  --violet:  #6D28D9;
+
+  --epic-colors: #0D9488,#4338CA,#C2770A,#BE123C,#6D28D9,#059669;
+
+  --r: 9px;
+  --sh:    0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --sh-md: 0 4px 12px rgba(0,0,0,.07), 0 2px 6px rgba(0,0,0,.04);
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',system-ui,sans-serif;background:var(--paper);color:var(--ink);font-size:14px;line-height:1.6}
+code,kbd,.mono{font-family:'DM Mono',monospace}
+
+/* ── page ── */
+.page{max-width:1100px;margin:0 auto;padding:32px 20px 80px}
+
+/* ── header ── */
+header{margin-bottom:28px;padding-bottom:22px;border-bottom:1.5px solid var(--border)}
+header h1{font-size:25px;font-weight:700;letter-spacing:-.03em;line-height:1.2}
+header p{font-size:13px;color:var(--ink-3);margin-top:5px}
+.header-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.sim-pill{display:inline-flex;align-items:center;gap:6px;background:var(--teal-bg);color:var(--teal);border:1px solid var(--teal-bd);border-radius:20px;padding:4px 13px;font-size:12px;font-weight:600;margin-top:8px}
+
+/* ── layout ── */
+.layout{display:grid;grid-template-columns:320px 1fr;gap:16px;align-items:start}
+
+/* ── panel ── */
+.panel{background:var(--white);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh)}
+.panel+.panel{margin-top:12px}
+.ph{padding:14px 16px 0;border-bottom:1px solid var(--border);padding-bottom:12px}
+.ph-title{font-size:13px;font-weight:600}
+.ph-sub{font-size:11px;color:var(--ink-3);margin-top:2px}
+.pb{padding:14px 16px 16px}
+
+/* ── form ── */
+.field{margin-bottom:13px}
+.field:last-child{margin-bottom:0}
+.field label{display:block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);margin-bottom:5px}
+.field input[type=text],.field input[type=number],.field textarea,.field select{
+  width:100%;padding:7px 10px;border-radius:6px;border:1.5px solid var(--border);
+  background:var(--paper);font-family:inherit;font-size:13px;color:var(--ink);outline:none;transition:border-color .15s
+}
+.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--teal);background:#fff}
+.field textarea{resize:vertical;min-height:64px;font-family:'DM Mono',monospace;font-size:12px}
+.field-hint{font-size:11px;color:var(--ink-3);margin-top:4px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+/* capacity multiplier row */
+.mult-row{display:flex;align-items:center;gap:10px}
+.mult-row input[type=range]{flex:1;accent-color:var(--teal);cursor:pointer}
+.mult-val{font-family:'DM Mono',monospace;font-size:13px;font-weight:500;min-width:44px;text-align:right;color:var(--ink)}
+
+/* ── Epics table ── */
+.epics-table-wrap{overflow-x:auto}
+table.epics{width:100%;border-collapse:collapse;font-size:12px}
+table.epics th{text-align:left;padding:6px 8px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);background:var(--paper);border-bottom:1.5px solid var(--border)}
+table.epics td{padding:7px 8px;border-bottom:1px solid var(--border)}
+table.epics tr:last-child td{border-bottom:none}
+table.epics tr:hover td{background:var(--paper)}
+table.epics input[type=number]{width:58px;padding:4px 6px;border:1.5px solid var(--border);border-radius:5px;font-size:12px;font-family:'DM Mono',monospace;text-align:center;background:var(--paper);outline:none;color:var(--ink)}
+table.epics input:focus{border-color:var(--teal);background:#fff}
+.epic-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle;flex-shrink:0}
+.epic-label{display:flex;align-items:center;gap:4px;font-weight:500;font-size:12px}
+.known-badge{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600;border:1px solid}
+.known-badge.yes{background:var(--teal-bg);color:var(--teal);border-color:var(--teal-bd)}
+.known-badge.no {background:var(--paper);color:var(--ink-3);border-color:var(--border)}
+.add-epic-row{display:flex;gap:8px;margin-top:10px;align-items:center}
+.btn-ghost{padding:6px 12px;border-radius:6px;border:1.5px solid var(--border);background:none;font-size:12px;font-weight:600;color:var(--ink-2);cursor:pointer;transition:all .15s;font-family:inherit}
+.btn-ghost:hover{border-color:var(--teal);color:var(--teal)}
+
+/* ── run button ── */
+.btn-run{width:100%;padding:11px;border-radius:7px;border:none;background:var(--teal);color:#fff;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:4px}
+.btn-run:hover{opacity:.88}
+.btn-run:disabled{opacity:.45;cursor:not-allowed}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{display:inline-block;animation:spin .6s linear infinite}
+
+/* ── result cards ── */
+.pct-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.pct-card{border-radius:7px;padding:11px 13px;border:1px solid transparent}
+.pct-card.p50{background:var(--teal-bg);border-color:var(--teal-bd)}
+.pct-card.p85{background:var(--amber-bg);border-color:var(--amber-bd)}
+.pct-card.p95{background:var(--rose-bg);border-color:var(--rose-bd)}
+.pct-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px}
+.pct-card.p50 .pct-label{color:var(--teal)}
+.pct-card.p85 .pct-label{color:var(--amber)}
+.pct-card.p95 .pct-label{color:var(--rose)}
+.pct-date{font-size:16px;font-weight:700;letter-spacing:-.02em;color:var(--ink);line-height:1.2}
+.pct-sprints{font-size:11px;color:var(--ink-3);margin-top:3px}
+
+/* deadline card */
+.deadline-card{border-radius:7px;padding:11px 13px;margin-bottom:12px;border:1.5px solid}
+.deadline-card.green{background:var(--teal-bg);border-color:var(--teal-bd)}
+.deadline-card.amber{background:var(--amber-bg);border-color:var(--amber-bd)}
+.deadline-card.red  {background:var(--rose-bg);border-color:var(--rose-bd)}
+.dl-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px}
+.deadline-card.green .dl-label{color:var(--teal)}
+.deadline-card.amber .dl-label{color:var(--amber)}
+.deadline-card.red   .dl-label{color:var(--rose)}
+.dl-row{display:flex;gap:20px;flex-wrap:wrap}
+.dl-item{display:flex;flex-direction:column;gap:2px}
+.dl-val{font-size:21px;font-weight:700;letter-spacing:-.02em}
+.deadline-card.green .dl-val{color:var(--teal)}
+.deadline-card.amber .dl-val{color:var(--amber)}
+.deadline-card.red   .dl-val{color:var(--rose)}
+.dl-sub{font-size:10px;color:var(--ink-3)}
+
+/* timeline */
+.tl-label{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin-bottom:7px}
+.tl-wrap{position:relative;height:32px;border-radius:6px;overflow:hidden;background:var(--paper);border:1px solid var(--border)}
+.tl-seg{position:absolute;top:0;bottom:0}
+.tl-pin{position:absolute;top:0;bottom:0;width:2px;background:var(--ink);opacity:.7;z-index:3}
+.tl-axis{display:flex;justify-content:space-between;margin-top:4px;font-size:10px;color:var(--ink-3)}
+.tl-legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:7px}
+.tl-leg{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-2)}
+.tl-dot{width:10px;height:10px;border-radius:3px}
+
+/* epic timeline */
+.epic-tl{margin-top:14px}
+.etl-row{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.etl-name{font-size:11px;font-weight:600;color:var(--ink-2);width:54px;flex-shrink:0;text-align:right}
+.etl-bar-wrap{flex:1;position:relative;height:20px;border-radius:4px;background:var(--paper);border:1px solid var(--border)}
+.etl-bar{position:absolute;top:0;bottom:0;border-radius:3px;display:flex;align-items:center;padding:0 6px;font-size:10px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden}
+.etl-bar.faded{opacity:.4}
+
+/* charts */
+.chart-wrap{position:relative;height:200px}
+
+/* interpretation */
+.interp .pb p{font-size:13px;color:var(--ink-2);margin-bottom:10px;line-height:1.75}
+.interp .pb p:last-child{margin-bottom:0}
+.interp .pb strong{color:var(--ink)}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:3px 9px;border-radius:12px;font-weight:600;margin-bottom:10px}
+.chip.ok  {background:var(--teal-bg);color:var(--teal)}
+.chip.warn{background:var(--amber-bg);color:var(--amber)}
+.chip.bad {background:var(--rose-bg);color:var(--rose)}
+
+/* empty */
+.empty{padding:40px 16px;text-align:center;color:var(--ink-3);font-size:13px;line-height:1.7}
+.empty-icon{font-size:26px;display:block;margin-bottom:9px}
+
+/* toggle */
+.tog-head{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer;background:var(--paper);border:1px solid var(--border);transition:background .1s;margin-top:8px}
+.tog-head:hover{background:#eef}
+.tog-label{font-size:12px;font-weight:600;color:var(--ink-2);flex:1}
+.tog-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:12px;background:var(--amber-bg);color:var(--amber)}
+.tog-badge.on{background:var(--teal-bg);color:var(--teal)}
+.tog-arrow{font-size:10px;color:var(--ink-3);transition:transform .2s}
+.tog-arrow.open{transform:rotate(90deg)}
+.tog-body{padding:12px 2px 4px;display:none}
+.tog-body.show{display:block}
+
+@media(max-width:800px){
+  .layout{grid-template-columns:1fr}
+  .pct-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ══ HEADER ══ -->
+<header>
+  <div class="header-row">
+    <div>
+      <h1>Monte Carlo · Prognoza Epików</h1>
+      <p>Probabilistyczna prognoza dostarczania 6 Epików · start 1 lipca 2026 · deadline koniec października</p>
+      <div class="sim-pill">🎲 <span>10 000 symulacji</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+
+<!-- ══ LEFT: INPUTS ══ -->
+<div id="left">
+
+  <!-- Start & deadline -->
+  <div class="panel">
+    <div class="ph"><div class="ph-title">Harmonogram</div><div class="ph-sub">Daty i podstawowe parametry</div></div>
+    <div class="pb">
+      <div class="row2">
+        <div class="field"><label>Data startu</label><input type="text" id="start-date" value="01/07/2026"></div>
+        <div class="field"><label>Deadline</label><input type="text" id="deadline" value="31/10/2026"></div>
+      </div>
+      <div class="field"><label>Długość okresu (dni)</label><input type="number" id="sprint-len" value="14" min="1"></div>
+    </div>
+  </div>
+
+  <!-- Throughput history -->
+  <div class="panel">
+    <div class="ph"><div class="ph-title">Historyczne tempo dostarczania</div><div class="ph-sub">Historyjki per 2-tygodniowy okres</div></div>
+    <div class="pb">
+      <div class="field">
+        <label>Przepustowość (oddzielona przecinkami)</label>
+        <textarea id="throughput">3, 4, 5, 4, 2, 7, 4, 5</textarea>
+        <div class="field-hint">Dane historyczne — historyjki zamknięte w każdym okresie</div>
+      </div>
+      <div class="field">
+        <label>Pojemność na Epiki (% czasu zespołu)</label>
+        <div class="mult-row">
+          <input type="range" id="capacity-pct" min="10" max="100" value="75"
+            oninput="document.getElementById('cap-val').textContent=this.value+'%'">
+          <span class="mult-val" id="cap-val">75%</span>
+        </div>
+        <div class="field-hint">Zespół skupia się na Epikach w 75% swojego czasu</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- September boost -->
+  <div class="panel">
+    <div class="ph"><div class="ph-title">Modyfikatory tempa</div><div class="ph-sub">Wzrost przepustowości od września</div></div>
+    <div class="pb">
+      <div class="tog-head" onclick="toggleSec('boost')">
+        <span class="tog-label">📈 Wzrost tempa od września</span>
+        <span class="tog-badge on" id="boost-badge">aktywny</span>
+        <span class="tog-arrow open" id="boost-arrow">▶</span>
+      </div>
+      <div class="tog-body show" id="boost-body">
+        <div class="field" style="margin-top:10px">
+          <label>Wzrost przepustowości (%)</label>
+          <div class="mult-row">
+            <input type="range" id="sept-boost" min="0" max="80" value="20"
+              oninput="document.getElementById('boost-val').textContent='+'+this.value+'%'">
+            <span class="mult-val" id="boost-val">+20%</span>
+          </div>
+          <div class="field-hint">Po urlopach + lepsza znajomość domeny · dotyczy od września 2026</div>
+        </div>
+        <div class="field">
+          <label>Wzrost zaczyna się od (MM/YYYY)</label>
+          <input type="text" id="boost-from" value="09/2026">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Epics table -->
+  <div class="panel">
+    <div class="ph"><div class="ph-title">Epiki — estymacje wielkości</div><div class="ph-sub">Min i max historyjek składowych + znajomość domeny</div></div>
+    <div class="pb">
+      <div class="epics-table-wrap">
+        <table class="epics" id="epics-table">
+          <thead>
+            <tr>
+              <th>Epik</th>
+              <th>Min</th>
+              <th>Max</th>
+              <th title="Znajomość domeny przez zespół">Znany?</th>
+            </tr>
+          </thead>
+          <tbody id="epics-tbody">
+            <!-- filled by JS -->
+          </tbody>
+        </table>
+      </div>
+      <div class="add-epic-row">
+        <button class="btn-ghost" onclick="addEpic()">+ Dodaj Epik</button>
+        <span style="font-size:11px;color:var(--ink-3)">Kliknij wiersz, by usunąć</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Known epics boost -->
+  <div class="panel">
+    <div class="ph"><div class="ph-title">Premia za znajomość Epika</div><div class="ph-sub">Znane Epiki mają mniejszą faktyczną wielkość</div></div>
+    <div class="pb">
+      <div class="field">
+        <label>Redukcja rozmiaru dla znanych Epików (%)</label>
+        <div class="mult-row">
+          <input type="range" id="known-discount" min="0" max="50" value="15"
+            oninput="document.getElementById('kd-val').textContent='-'+this.value+'%'">
+          <span class="mult-val" id="kd-val">-15%</span>
+        </div>
+        <div class="field-hint">Epiki 1 i 2 są już znane — ich estymacja może być bardziej precyzyjna, faktyczna liczba historyjek może być niższa</div>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn-run" id="run-btn" onclick="runMC()">🎲 Uruchom symulację</button>
+
+</div><!-- /left -->
+
+<!-- ══ RIGHT: RESULTS ══ -->
+<div id="right">
+
+  <div class="panel" id="res-panel">
+    <div class="ph"><div class="ph-title" id="res-title">Wyniki prognozy</div><div class="ph-sub" id="res-sub">Uruchom symulację, aby zobaczyć prognozę</div></div>
+    <div class="pb" id="res-inner">
+      <div class="empty"><span class="empty-icon">📊</span>Skonfiguruj parametry Epików<br>i kliknij <strong>Uruchom symulację</strong>.</div>
+    </div>
+  </div>
+
+  <div class="panel" id="chart-panel" style="display:none">
+    <div class="ph"><div class="ph-title">Rozkład wyników</div><div class="ph-sub">Liczba okresów do zamknięcia wszystkich Epików (10 000 symulacji)</div></div>
+    <div class="pb"><div class="chart-wrap"><canvas id="mc-chart"></canvas></div></div>
+  </div>
+
+  <div class="panel" id="epic-chart-panel" style="display:none">
+    <div class="ph"><div class="ph-title">Oś czasu Epików</div><div class="ph-sub">Prognozowana kolejność dostarczania (mediana)</div></div>
+    <div class="pb" id="epic-tl-body"></div>
+  </div>
+
+  <div class="panel interp" id="interp-panel" style="display:none">
+    <div class="ph"><div class="ph-title">Interpretacja</div></div>
+    <div class="pb" id="interp-body"></div>
+  </div>
+
+</div><!-- /right -->
+</div><!-- /layout -->
+</div>
+
+<script>
+/* ══════════════════════════════════════════════
+   CONSTANTS & STATE
+══════════════════════════════════════════════ */
+const N = 10000;
+const EPIC_COLORS = ['#0D9488','#4338CA','#C2770A','#BE123C','#6D28D9','#059669'];
+let chartInst = null;
+
+// Default epics from the brief
+let EPICS = [
+  { name:'Epik 1', min:4, max:6, known:true  },
+  { name:'Epik 2', min:3, max:5, known:true  },
+  { name:'Epik 3', min:3, max:4, known:false },
+  { name:'Epik 4', min:3, max:5, known:false },
+  { name:'Epik 5', min:4, max:7, known:false },
+  { name:'Epik 6', min:4, max:8, known:false },
+];
+
+/* ══════════════════════════════════════════════
+   DATE HELPERS
+══════════════════════════════════════════════ */
+function parseDate(s) {
+  const [d,m,y] = s.trim().split('/');
+  return new Date(+y, +m-1, +d);
+}
+function parseMonthYear(s) {
+  const [m,y] = s.trim().split('/');
+  return { m: +m-1, y: +y };
+}
+function addDays(d, n) { const r=new Date(d); r.setDate(r.getDate()+n); return r; }
+function fmtDate(d) { return d.toLocaleDateString('pl-PL',{day:'numeric',month:'long',year:'numeric'}); }
+function fmtShort(d) { return d.toLocaleDateString('pl-PL',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+function pctile(arr, p) {
+  const s=[...arr].sort((a,b)=>a-b);
+  const pos=(s.length-1)*p/100, lo=Math.floor(pos), hi=Math.ceil(pos);
+  return s[lo]+(s[hi]-s[lo])*(pos-lo);
+}
+
+/* ══════════════════════════════════════════════
+   EPIC TABLE RENDER
+══════════════════════════════════════════════ */
+function renderEpicsTable() {
+  const tbody = document.getElementById('epics-tbody');
+  tbody.innerHTML = EPICS.map((e,i) => `
+    <tr>
+      <td>
+        <div class="epic-label">
+          <span class="epic-dot" style="background:${EPIC_COLORS[i%EPIC_COLORS.length]}"></span>
+          <input type="text" style="border:none;background:none;font-size:12px;font-weight:600;color:var(--ink);width:70px;outline:none;font-family:inherit"
+            value="${e.name}" onchange="EPICS[${i}].name=this.value">
+        </div>
+      </td>
+      <td><input type="number" value="${e.min}" min="1" max="99" onchange="EPICS[${i}].min=+this.value"></td>
+      <td><input type="number" value="${e.max}" min="1" max="99" onchange="EPICS[${i}].max=+this.value"></td>
+      <td>
+        <span class="known-badge ${e.known?'yes':'no'}" style="cursor:pointer"
+          onclick="EPICS[${i}].known=!EPICS[${i}].known;renderEpicsTable()">
+          ${e.known?'✓ Znany':'—'}
+        </span>
+      </td>
+    </tr>`).join('');
+}
+
+function addEpic() {
+  const i = EPICS.length+1;
+  EPICS.push({ name:`Epik ${i}`, min:3, max:6, known:false });
+  renderEpicsTable();
+}
+
+/* ══════════════════════════════════════════════
+   TOGGLE SECTIONS
+══════════════════════════════════════════════ */
+function toggleSec(id) {
+  const body  = document.getElementById(id+'-body');
+  const arrow = document.getElementById(id+'-arrow');
+  const show  = body.classList.toggle('show');
+  arrow.classList.toggle('open', show);
+}
+
+/* ══════════════════════════════════════════════
+   CAPACITY MULTIPLIER PER PERIOD
+  
+  Rules:
+  - Base: capacity % of team time applied to throughput
+  - Sept boost: throughput multiplied from boost-from month
+  - Known epic discount: epic size drawn from smaller range
+══════════════════════════════════════════════ */
+function capacityMult(periodIdx, startDate, sprintDays, baseCap, boostPct, boostFrom) {
+  const d = addDays(startDate, periodIdx * sprintDays);
+  const m = d.getMonth(), y = d.getFullYear();
+  let mult = baseCap;
+  if (boostPct > 0 && boostFrom) {
+    if (y > boostFrom.y || (y === boostFrom.y && m >= boostFrom.m)) {
+      mult *= (1 + boostPct);
+    }
+  }
+  return mult;
+}
+
+/* ══════════════════════════════════════════════
+   MONTE CARLO CORE
+  
+  Per simulation:
+  1. For each epic, draw random size ∈ [min, max] (uniform integer)
+     → if epic is "known", apply discount to max
+  2. Total stories = sum of epic sizes
+  3. Consume stories period by period, sampling historical throughput
+     scaled by capacity multiplier
+  4. Track when each epic completes (sequential delivery)
+  5. Count total periods until all done
+══════════════════════════════════════════════ */
+function runMC() {
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin">⚙</span> Obliczam…';
+  setTimeout(() => { try{_mc()}finally{btn.disabled=false;btn.innerHTML='🎲 Uruchom symulację'} }, 30);
+}
+
+function _mc() {
+  // Read inputs
+  const startDate  = parseDate(document.getElementById('start-date').value);
+  const deadline   = parseDate(document.getElementById('deadline').value);
+  const sprintLen  = parseInt(document.getElementById('sprint-len').value)||14;
+  const rawTp      = document.getElementById('throughput').value
+    .split(',').map(v=>parseFloat(v.trim())).filter(v=>!isNaN(v)&&v>=0);
+  const baseCap    = parseFloat(document.getElementById('capacity-pct').value)/100 || .75;
+  const boostPct   = parseFloat(document.getElementById('sept-boost').value)/100 || 0;
+  const boostFrom  = parseMonthYear(document.getElementById('boost-from').value);
+  const knownDisc  = parseFloat(document.getElementById('known-discount').value)/100 || 0;
+
+  if (!rawTp.length) { alert('Podaj historyczne tempo!'); return; }
+
+  const MAX_PERIODS = 300;
+
+  // Epic size bounds per epic (apply known discount to max)
+  const epicBounds = EPICS.map(e => ({
+    min: e.min,
+    max: e.known ? Math.max(e.min, Math.round(e.max*(1-knownDisc))) : e.max,
+    known: e.known,
+  }));
+
+  // Results arrays
+  const totalPeriods = new Int32Array(N);
+  const epicCompletionPeriods = EPICS.map(() => new Float64Array(N));
+
+  for (let s = 0; s < N; s++) {
+    // Draw random sizes for each epic
+    const epicSizes = epicBounds.map(b => b.min + Math.floor(Math.random()*(b.max-b.min+1)));
+    const totalStories = epicSizes.reduce((a,b)=>a+b,0);
+
+    let done = 0;
+    let period = 0;
+    let epicIdx = 0;
+    let epicDone = 0; // stories done in current epic
+
+    while (done < totalStories && period < MAX_PERIODS) {
+      const mult = capacityMult(period, startDate, sprintLen, baseCap, boostPct, boostFrom);
+      const tp = rawTp[Math.floor(Math.random()*rawTp.length)] * mult;
+
+      let remaining = tp;
+      while (remaining > 0 && epicIdx < EPICS.length) {
+        const need = epicSizes[epicIdx] - epicDone;
+        if (remaining >= need) {
+          remaining -= need;
+          epicCompletionPeriods[epicIdx][s] = period + (tp-remaining)/tp; // fractional completion
+          epicIdx++;
+          epicDone = 0;
+        } else {
+          epicDone += remaining;
+          remaining = 0;
+        }
+      }
+
+      done += tp;
+      period++;
+    }
+    totalPeriods[s] = period;
+  }
+
+  // Convert period counts to dates
+  const totalArr = Array.from(totalPeriods);
+  const p50p = pctile(totalArr,50);
+  const p85p = pctile(totalArr,85);
+  const p95p = pctile(totalArr,95);
+
+  const toDate = p => addDays(startDate, Math.round(p)*sprintLen);
+  const p50d = toDate(p50p), p85d = toDate(p85p), p95d = toDate(p95p);
+
+  // Epic median completion periods
+  const epicMedians = EPICS.map((_,i) => pctile(Array.from(epicCompletionPeriods[i]),50));
+  const epicP85s    = EPICS.map((_,i) => pctile(Array.from(epicCompletionPeriods[i]),85));
+
+  // Probability of meeting deadline
+  const dlMs = deadline.getTime();
+  const meetDl = totalArr.filter(p => addDays(startDate,p*sprintLen).getTime() <= dlMs).length / N;
+
+  renderResults(p50d,p85d,p95d, p50p,p85p,p95p, deadline, meetDl, startDate, sprintLen);
+  renderHistogram(totalArr);
+  renderEpicTimeline(epicMedians, epicP85s, startDate, sprintLen, deadline);
+  renderInterpretation(p50d,p85d,p95d, meetDl, deadline, boostPct, baseCap, knownDisc);
+}
+
+/* ══════════════════════════════════════════════
+   RENDER RESULTS
+══════════════════════════════════════════════ */
+function renderResults(p50d,p85d,p95d, p50p,p85p,p95p, deadline, meetDl, startDate, sprintLen) {
+  const totalMs = p95d.getTime()-startDate.getTime()||1;
+  const pct = d => Math.max(0,Math.min(100,(d.getTime()-startDate.getTime())/totalMs*100));
+  const dlpct = pct(deadline);
+
+  const dlCls = meetDl>=.85?'green':meetDl>=.5?'amber':'red';
+  const dlIcon = meetDl>=.85?'✓':meetDl>=.5?'⚠':'✗';
+
+  document.getElementById('res-inner').innerHTML = `
+    <div class="pct-grid">
+      <div class="pct-card p50">
+        <div class="pct-label">P50 — 50% szans</div>
+        <div class="pct-date">${fmtShort(p50d)}</div>
+        <div class="pct-sprints">~${Math.round(p50p)} okresów</div>
+      </div>
+      <div class="pct-card p85">
+        <div class="pct-label">P85 — 85% szans</div>
+        <div class="pct-date">${fmtShort(p85d)}</div>
+        <div class="pct-sprints">~${Math.round(p85p)} okresów</div>
+      </div>
+      <div class="pct-card p95">
+        <div class="pct-label">P95 — 95% szans</div>
+        <div class="pct-date">${fmtShort(p95d)}</div>
+        <div class="pct-sprints">~${Math.round(p95p)} okresów</div>
+      </div>
+    </div>
+
+    <div class="deadline-card ${dlCls}">
+      <div class="dl-label">${dlIcon} Deadline — ${fmtShort(deadline)}</div>
+      <div class="dl-row">
+        <div class="dl-item">
+          <span class="dl-val">${Math.round(meetDl*100)}%</span>
+          <span class="dl-sub">prawdopodobieństwo ukończenia na czas</span>
+        </div>
+        <div class="dl-item">
+          <span class="dl-val">${Math.round((1-meetDl)*100)}%</span>
+          <span class="dl-sub">ryzyko przekroczenia terminu</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:4px">
+      <div class="tl-label">Oś czasu · start → P95</div>
+      <div class="tl-wrap">
+        <div class="tl-seg" style="left:0;width:${pct(p50d)}%;background:#0D9488;opacity:.55"></div>
+        <div class="tl-seg" style="left:${pct(p50d)}%;width:${pct(p85d)-pct(p50d)}%;background:#C2770A;opacity:.6"></div>
+        <div class="tl-seg" style="left:${pct(p85d)}%;width:${pct(p95d)-pct(p85d)}%;background:#BE123C;opacity:.55"></div>
+        ${dlpct<=100?`<div class="tl-pin" style="left:${dlpct}%"></div>`:''}
+      </div>
+      <div class="tl-axis">
+        <span>${fmtShort(new Date(startDate||Date.now()))}</span>
+        <span>P95 ${fmtShort(p95d)}</span>
+      </div>
+      <div class="tl-legend">
+        <div class="tl-leg"><div class="tl-dot" style="background:#0D9488"></div>Do P50</div>
+        <div class="tl-leg"><div class="tl-dot" style="background:#C2770A"></div>P50–P85</div>
+        <div class="tl-leg"><div class="tl-dot" style="background:#BE123C"></div>P85–P95</div>
+        ${dlpct<=100?'<div class="tl-leg"><div class="tl-dot" style="background:var(--ink)"></div>Deadline</div>':''}
+      </div>
+    </div>`;
+
+  document.getElementById('res-sub').textContent =
+    `${N.toLocaleString('pl')} symulacji · ${EPICS.length} Epików · deadline: ${fmtShort(deadline)}`;
+}
+
+/* ══════════════════════════════════════════════
+   HISTOGRAM
+══════════════════════════════════════════════ */
+function renderHistogram(totalArr) {
+  const panel = document.getElementById('chart-panel');
+  panel.style.display = 'block';
+
+  const min = Math.min(...totalArr), max = Math.max(...totalArr);
+  const bins = Math.min(max-min+1, 35);
+  const bsz  = Math.ceil((max-min+1)/bins);
+  const counts = [], labels = [];
+  const p50 = pctile(totalArr,50), p85 = pctile(totalArr,85), p95 = pctile(totalArr,95);
+
+  for (let i=0;i<bins;i++) {
+    const lo = min+i*bsz, hi = lo+bsz-1;
+    labels.push(lo===hi?`${lo}`:`${lo}–${hi}`);
+    counts.push(totalArr.filter(v=>v>=lo&&v<=hi).length);
+  }
+
+  const colors = labels.map((_,i)=>{
+    const mid = min+i*bsz+bsz/2;
+    if(mid<=p50) return 'rgba(13,148,136,.65)';
+    if(mid<=p85) return 'rgba(194,119,10,.65)';
+    if(mid<=p95) return 'rgba(190,18,60,.60)';
+    return 'rgba(100,116,139,.4)';
+  });
+
+  if (chartInst) chartInst.destroy();
+  chartInst = new Chart(document.getElementById('mc-chart'),{
+    type:'bar',
+    data:{labels,datasets:[{label:'Symulacje',data:counts,backgroundColor:colors,borderWidth:0,borderRadius:3}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:i=>` ${i.raw} symulacji (${(i.raw/N*100).toFixed(1)}%)`}}},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:10},color:'#8B909E',maxTicksLimit:10,maxRotation:0},
+           title:{display:true,text:'Okresy do ukończenia',color:'#8B909E',font:{size:11}}},
+        y:{grid:{color:'#E1E5ED'},ticks:{font:{size:10},color:'#8B909E'},
+           title:{display:true,text:'Liczba symulacji',color:'#8B909E',font:{size:11}}}
+      }
+    }
+  });
+}
+
+/* ══════════════════════════════════════════════
+   EPIC TIMELINE
+══════════════════════════════════════════════ */
+function renderEpicTimeline(medians, p85s, startDate, sprintLen, deadline) {
+  const panel = document.getElementById('epic-chart-panel');
+  panel.style.display = 'block';
+
+  const maxP = Math.max(...p85s) + 0.5;
+  const dlPeriod = (deadline.getTime()-startDate.getTime())/(sprintLen*24*3600*1000);
+
+  let html = '<div class="epic-tl">';
+  EPICS.forEach((e,i) => {
+    const med = medians[i], p85 = p85s[i];
+    const startPct = 0;
+    const medPct = Math.min(100, (med/maxP)*100);
+    const p85Pct = Math.min(100, (p85/maxP)*100);
+    const color = EPIC_COLORS[i%EPIC_COLORS.length];
+    const dlPct = Math.min(100,(dlPeriod/maxP)*100);
+    const onTime = med <= dlPeriod;
+
+    html += `
+      <div class="etl-row">
+        <div class="etl-name" style="color:${color}">${e.name}</div>
+        <div class="etl-bar-wrap">
+          <div class="etl-bar" style="left:0;width:${p85Pct}%;background:${color};opacity:.25"></div>
+          <div class="etl-bar" style="left:0;width:${medPct}%;background:${color}">
+            ${medPct>12?fmtShort(addDays(startDate,Math.round(med)*sprintLen)):''}
+          </div>
+          ${dlPct<=100?`<div style="position:absolute;top:0;bottom:0;left:${dlPct}%;width:1.5px;background:var(--ink);opacity:.6;z-index:4"></div>`:''}
+        </div>
+      </div>`;
+  });
+
+  // Legend
+  html += `</div>
+    <div class="tl-legend" style="margin-top:10px">
+      <div class="tl-leg"><div class="tl-dot" style="background:#4338CA"></div>Mediana ukończenia (P50)</div>
+      <div class="tl-leg"><div class="tl-dot" style="background:#4338CA;opacity:.3"></div>Do P85</div>
+      <div class="tl-leg"><div class="tl-dot" style="background:var(--ink)"></div>Deadline</div>
+    </div>
+    <div style="font-size:11px;color:var(--ink-3);margin-top:8px">Epiki dostarczane sekwencyjnie w kolejności z tabeli.</div>`;
+
+  document.getElementById('epic-tl-body').innerHTML = html;
+}
+
+/* ══════════════════════════════════════════════
+   INTERPRETATION
+══════════════════════════════════════════════ */
+function renderInterpretation(p50d,p85d,p95d, meetDl, deadline, boostPct, baseCap, knownDisc) {
+  const panel = document.getElementById('interp-panel');
+  panel.style.display = 'block';
+
+  const dlCls = meetDl>=.85?'ok':meetDl>=.5?'warn':'bad';
+  const dlText = meetDl>=.85?'✓ Deadline realny':'⚠ Deadline zagrożony';
+
+  const knownNames = EPICS.filter(e=>e.known).map(e=>e.name).join(' i ');
+  const unknownNames = EPICS.filter(e=>!e.known).map(e=>e.name).join(', ');
+
+  let html = `<span class="chip ${dlCls}">${dlText}</span>
+    <p>Przy historycznym tempie <strong>${document.getElementById('throughput').value.trim()}</strong> historyjek per 2-tygodniowy okres
+    i pojemności <strong>${document.getElementById('capacity-pct').value}% czasu zespołu</strong> na Epiki:
+    mediana ukończenia to <strong>${fmtDate(p50d)}</strong>, 85% szans to <strong>${fmtDate(p85d)}</strong>,
+    a 95% — <strong>${fmtDate(p95d)}</strong>.</p>
+
+    <p>Prawdopodobieństwo zamknięcia wszystkich 6 Epików przed <strong>${fmtShort(deadline)}</strong>
+    wynosi <strong>${Math.round(meetDl*100)}%</strong>.
+    ${meetDl>=.85
+      ? 'Termin wydaje się osiągalny przy obecnym tempie.'
+      : meetDl>=.5
+        ? 'Termin jest możliwy, ale wymaga starannego zarządzania ryzykiem i priorytetami.'
+        : 'Termin jest poważnie zagrożony — warto rozważyć redukcję zakresu lub zwiększenie pojemności.'
+    }</p>`;
+
+  if (knownNames) html += `<p><strong>${knownNames}</strong> są już znane zespołowi — zastosowano
+    <strong>-${document.getElementById('known-discount').value}% redukcji</strong> na ich szacowany rozmiar,
+    co oddaje wyższą precyzję estymacji i mniejsze ryzyko odkryć podczas implementacji.</p>`;
+
+  if (boostPct>0) html += `<p>Od września 2026 zakładamy <strong>wzrost przepustowości o ${Math.round(boostPct*100)}%</strong>
+    (po urlopach + lepsza znajomość domeny dla Epików 3–6). To kluczowy czynnik — jeśli wzrost tempa się nie zmaterializuje,
+    daty ukończenia przesuną się w prawo.</p>`;
+
+  html += `<p style="font-size:12px;color:var(--ink-3)">Prognoza oparta na ${N.toLocaleString('pl')} symulacjach.
+    Rozmiar każdego Epiku jest losowany z zadanego przedziału per symulacja.
+    P85 to dobra „bezpieczna" data do komunikacji zewnętrznej.</p>`;
+
+  document.getElementById('interp-body').innerHTML = html;
+}
+
+/* ══════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════ */
+renderEpicsTable();
+window.addEventListener('DOMContentLoaded', () => runMC());
+</script>
+</body>
+</html>

@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zakres vs Termin · Dashboard decyzyjny</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  --ink:    #111318;
+  --ink-2:  #3D4251;
+  --ink-3:  #878C9B;
+  --paper:  #F7F8FA;
+  --white:  #FFFFFF;
+  --border: #DDE1EA;
+  --border-2:#C8CEDB;
+
+  --red:    #C8102E; --red-bg:  #FFF0F2; --red-bd:  #FBBFCA;
+  --amber:  #B45309; --amber-bg:#FFFBEB; --amber-bd:#FDE68A;
+  --green:  #0A7C5C; --green-bg:#ECFDF5; --green-bd:#6EE7B7;
+
+  --r: 10px;
+  --sh: 0 1px 4px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --sh-md: 0 4px 12px rgba(0,0,0,.07), 0 2px 6px rgba(0,0,0,.04);
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',system-ui,sans-serif;background:var(--paper);color:var(--ink);font-size:14px;line-height:1.55;min-height:100vh}
+
+.page{max-width:960px;margin:0 auto;padding:36px 24px 72px}
+
+/* ── header ── */
+.hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:28px;padding-bottom:22px;border-bottom:1.5px solid var(--border);flex-wrap:wrap}
+.hdr-left{}
+.hdr-tag{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:5px}
+.hdr h1{font-size:22px;font-weight:800;letter-spacing:-.03em;line-height:1.2}
+.hdr-meta{font-size:12px;color:var(--ink-3);margin-top:4px}
+.hdr-right{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.sim-pill{font-size:11px;color:var(--ink-3);background:var(--white);border:1px solid var(--border);border-radius:20px;padding:4px 13px;white-space:nowrap}
+
+/* ── controls strip ── */
+.controls{background:var(--white);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);padding:16px 20px;margin-bottom:22px}
+.ctl-title{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-bottom:14px}
+.ctl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px 24px}
+.ctl-field{display:flex;flex-direction:column;gap:5px}
+.ctl-label{font-size:11px;font-weight:600;color:var(--ink-2)}
+.ctl-hint{font-size:10px;color:var(--ink-3);margin-top:2px}
+.ctl-field input[type=text],.ctl-field input[type=number],.ctl-field textarea{
+  padding:6px 10px;border-radius:6px;border:1.5px solid var(--border);
+  background:var(--paper);font-family:inherit;font-size:13px;color:var(--ink);outline:none;transition:border-color .15s
+}
+.ctl-field input:focus,.ctl-field textarea:focus{border-color:var(--green);background:#fff}
+.ctl-field textarea{resize:none;height:46px;font-family:'DM Mono',monospace;font-size:12px}
+.slider-row{display:flex;align-items:center;gap:8px}
+.slider-row input[type=range]{flex:1;accent-color:var(--green);cursor:pointer}
+.slider-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:600;min-width:42px;text-align:right;color:var(--ink)}
+
+/* cut toggle */
+.cut-toggle{display:flex;gap:6px;margin-top:2px}
+.cut-btn{flex:1;padding:5px 8px;border-radius:6px;border:1.5px solid var(--border);background:var(--paper);font-size:12px;font-weight:600;color:var(--ink-3);cursor:pointer;text-align:center;transition:all .15s}
+.cut-btn.active{border-color:var(--green);background:var(--green-bg);color:var(--green)}
+
+.btn-run{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:14px;padding:10px;border-radius:8px;border:none;background:var(--ink);color:#fff;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s}
+.btn-run:hover{opacity:.82}
+.btn-run:disabled{opacity:.4;cursor:not-allowed}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{display:inline-block;animation:spin .6s linear infinite}
+
+/* ── verdict ── */
+.verdict{border-radius:var(--r);padding:18px 22px;margin-bottom:22px;border:1.5px solid;position:relative;overflow:hidden;display:flex;gap:14px;align-items:flex-start}
+.verdict-bar{width:5px;flex-shrink:0;border-radius:3px;align-self:stretch}
+.verdict.green{background:var(--green-bg);border-color:var(--green-bd)}.verdict.green .verdict-bar{background:var(--green)}
+.verdict.amber{background:var(--amber-bg);border-color:var(--amber-bd)}.verdict.amber .verdict-bar{background:var(--amber)}
+.verdict.red  {background:var(--red-bg);border-color:var(--red-bd)}  .verdict.red   .verdict-bar{background:var(--red)}
+.verdict-body{}
+.verdict-label{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px}
+.verdict.green .verdict-label{color:var(--green)}
+.verdict.amber .verdict-label{color:var(--amber)}
+.verdict.red   .verdict-label{color:var(--red)}
+.verdict-text{font-size:15px;font-weight:700;color:var(--ink);line-height:1.4;margin-bottom:4px}
+.verdict-sub{font-size:13px;color:var(--ink-2);line-height:1.6}
+
+/* ── scenario cards ── */
+.sc-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:22px}
+.sc-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 18px;box-shadow:var(--sh);position:relative}
+.sc-card.highlight{border-color:var(--green);box-shadow:0 0 0 3px rgba(10,124,92,.1),var(--sh)}
+.sc-rec{position:absolute;top:10px;right:10px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd)}
+.sc-eyebrow{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-bottom:5px}
+.sc-name{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:3px}
+.sc-desc{font-size:12px;color:var(--ink-3);margin-bottom:10px}
+.sc-divider{height:1px;background:var(--border);margin:10px 0}
+.sc-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;font-size:13px}
+.sc-row-lbl{color:var(--ink-3)}
+.sc-row-val{font-weight:700;font-variant-numeric:tabular-nums}
+.sc-prob{display:flex;align-items:center;justify-content:center;gap:5px;margin-top:10px;padding:6px 10px;border-radius:6px;font-size:12px;font-weight:700}
+.sc-prob.red   {background:var(--red-bg);color:var(--red)}
+.sc-prob.amber {background:var(--amber-bg);color:var(--amber)}
+.sc-prob.green {background:var(--green-bg);color:var(--green)}
+.sc-tradeoff{background:var(--paper);border-radius:8px;padding:12px 14px}
+.sc-tradeoff-title{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px}
+
+/* ── gantt ── */
+.gantt-wrap{background:var(--white);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);margin-bottom:22px;overflow:hidden}
+.gantt-head{padding:13px 18px;border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:10px}
+.gantt-title{font-size:13px;font-weight:700}
+.gantt-sub{font-size:11px;color:var(--ink-3)}
+.gantt-body{padding:14px 18px}
+
+/* ── decision factors ── */
+.factors{background:var(--white);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);padding:18px 20px;margin-bottom:22px}
+.factors-title{font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin-bottom:14px}
+.factors-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.factor{background:var(--paper);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.factor-label{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);margin-bottom:5px}
+.factor-text{font-size:13px;color:var(--ink-2);line-height:1.65}
+.factor-text strong{color:var(--ink)}
+
+/* ── assumptions ── */
+.assumptions{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;margin-bottom:22px}
+.asm-title{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin-bottom:10px}
+.asm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.asm-item{display:flex;flex-direction:column;gap:2px}
+.asm-lbl{font-size:10px;color:var(--ink-3)}
+.asm-val{font-size:12px;font-weight:600;color:var(--ink);font-family:'DM Mono',monospace}
+
+/* ── footnote ── */
+.footnote{font-size:11px;color:var(--ink-3);text-align:center;padding-top:18px;border-top:1px solid var(--border);line-height:1.75}
+
+/* ── loading ── */
+.loading{padding:60px;text-align:center;color:var(--ink-3);font-size:13px}
+.loading-spin{font-size:24px;display:block;margin-bottom:10px;animation:spin .7s linear infinite}
+
+/* ── empty ── */
+#output{min-height:40px}
+
+@media(max-width:720px){
+  .sc-grid{grid-template-columns:1fr}
+  .ctl-grid{grid-template-columns:1fr 1fr}
+  .factors-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-left">
+    <div class="hdr-tag">Dashboard decyzyjny</div>
+    <h1>Zakres vs Termin — Prognoza Epików</h1>
+    <div class="hdr-meta">Monte Carlo · start: 1 lipca 2026 · deadline: 31 października 2026</div>
+  </div>
+  <div class="hdr-right">
+    <div class="sim-pill">🎲 10 000 symulacji / scenariusz</div>
+  </div>
+</div>
+
+<!-- CONTROLS -->
+<div class="controls">
+  <div class="ctl-title">Parametry symulacji</div>
+  <div class="ctl-grid">
+
+    <div class="ctl-field">
+      <label class="ctl-label">Data startu</label>
+      <input type="text" id="p-start" value="01/07/2026">
+    </div>
+
+    <div class="ctl-field">
+      <label class="ctl-label">Deadline</label>
+      <input type="text" id="p-deadline" value="31/10/2026">
+    </div>
+
+    <div class="ctl-field">
+      <label class="ctl-label">Historyczne tempo (historyjki/sprint)</label>
+      <textarea id="p-tp">3, 4, 5, 4, 2, 7, 4, 5</textarea>
+      <div class="ctl-hint">Liczby oddzielone przecinkami</div>
+    </div>
+
+    <div class="ctl-field">
+      <label class="ctl-label">Pojemność na Epiki</label>
+      <div class="slider-row">
+        <input type="range" id="p-cap" min="10" max="100" value="75"
+          oninput="sv('cap-v',this.value+'%')">
+        <span class="slider-val" id="cap-v">75%</span>
+      </div>
+      <div class="ctl-hint">% czasu zespołu dedykowany Epikom</div>
+    </div>
+
+    <div class="ctl-field">
+      <label class="ctl-label">Wzrost tempa od września</label>
+      <div class="slider-row">
+        <input type="range" id="p-boost" min="0" max="80" value="20"
+          oninput="sv('boost-v','+'+this.value+'%')">
+        <span class="slider-val" id="boost-v">+20%</span>
+      </div>
+      <div class="ctl-hint">Po urlopach + lepsza znajomość domeny</div>
+    </div>
+
+    <div class="ctl-field">
+      <label class="ctl-label">Redukcja rozmiaru znanych Epików</label>
+      <div class="slider-row">
+        <input type="range" id="p-disc" min="0" max="50" value="15"
+          oninput="sv('disc-v','-'+this.value+'%')">
+        <span class="slider-val" id="disc-v">-15%</span>
+      </div>
+      <div class="ctl-hint">Epiki 1–2 są już znane zespołowi</div>
+    </div>
+
+    <div class="ctl-field">
+      <label class="ctl-label">Wariant cięcia zakresu</label>
+      <div class="cut-toggle">
+        <button class="cut-btn active" data-cut="2" onclick="setCut(2)">Usuń Epik 5–6</button>
+        <button class="cut-btn" data-cut="3" onclick="setCut(3)">Usuń Epik 4–6</button>
+        <button class="cut-btn" data-cut="1" onclick="setCut(1)">Usuń Epik 6</button>
+      </div>
+      <div class="ctl-hint">Scenariusz B — które Epiki odkładamy</div>
+    </div>
+
+  </div>
+
+  <button class="btn-run" id="run-btn" onclick="run()">🎲 Przelicz scenariusze</button>
+</div>
+
+<!-- OUTPUT -->
+<div id="output">
+  <div class="loading"><span class="loading-spin">⚙</span>Obliczam…</div>
+</div>
+
+</div><!-- /page -->
+
+<script>
+/* ═══════════════════════════════════
+   STATE
+═══════════════════════════════════ */
+const N = 10000;
+let cutN = 2; // how many epics to cut from the end
+
+const EPICS_ALL = [
+  { name:'Epik 1', min:4, max:6, known:true  },
+  { name:'Epik 2', min:3, max:5, known:true  },
+  { name:'Epik 3', min:3, max:4, known:false },
+  { name:'Epik 4', min:3, max:5, known:false },
+  { name:'Epik 5', min:4, max:7, known:false },
+  { name:'Epik 6', min:4, max:8, known:false },
+];
+
+const COLORS = ['#0D9488','#4338CA','#C2770A','#BE123C','#6D28D9','#059669'];
+
+/* ═══════════════════════════════════
+   HELPERS
+═══════════════════════════════════ */
+function sv(id, v){ document.getElementById(id).textContent = v; }
+
+function setCut(n){
+  cutN = n;
+  document.querySelectorAll('.cut-btn').forEach(b =>
+    b.classList.toggle('active', +b.dataset.cut === n));
+}
+
+function addDays(d,n){ const r=new Date(d); r.setDate(r.getDate()+n); return r; }
+function parseD(s){ const [d,m,y]=s.trim().split('/'); return new Date(+y,+m-1,+d); }
+function parseMyear(s){ const [m,y]=s.split('/'); return {m:+m-1,y:+y}; }
+function fmtS(d){ return d.toLocaleDateString('pl-PL',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+function fmtM(d){ return d.toLocaleDateString('pl-PL',{day:'numeric',month:'long'}); }
+const PLM=['sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paź','lis','gru'];
+
+function pct(arr,p){
+  const s=[...arr].sort((a,b)=>a-b);
+  const pos=(s.length-1)*p/100,lo=Math.floor(pos),hi=Math.ceil(pos);
+  return s[lo]+(s[hi]-s[lo])*(pos-lo);
+}
+
+/* ═══════════════════════════════════
+   SIMULATION
+═══════════════════════════════════ */
+function simulate(epics, cfg){
+  const {start, dl, spLen, tp, cap, boost, boostFrom, disc} = cfg;
+
+  const bounds = epics.map(e=>({
+    min:e.min,
+    max:e.known ? Math.max(e.min, Math.round(e.max*(1-disc))) : e.max
+  }));
+
+  function mult(pi){
+    const d=addDays(start, pi*spLen);
+    let m=cap;
+    if(d.getFullYear()>boostFrom.y||(d.getFullYear()===boostFrom.y&&d.getMonth()>=boostFrom.m)) m*=(1+boost);
+    return m;
+  }
+
+  const totP   = new Int32Array(N);
+  const endP   = epics.map(()=>new Float64Array(N));
+  const startP = epics.map(()=>new Float64Array(N));
+
+  for(let s=0;s<N;s++){
+    const sz = bounds.map(b=>b.min+Math.floor(Math.random()*(b.max-b.min+1)));
+    const tot = sz.reduce((a,b)=>a+b,0);
+    let done=0,per=0,ei=0,ed=0;
+    startP[0][s]=0;
+
+    while(done<tot&&per<200){
+      const t=tp[Math.floor(Math.random()*tp.length)]*mult(per);
+      let rem=t;
+      while(rem>0&&ei<epics.length){
+        const need=sz[ei]-ed;
+        if(rem>=need){
+          rem-=need;
+          const f=per+(t-rem)/Math.max(t,0.0001);
+          endP[ei][s]=f; ei++; ed=0;
+          if(ei<epics.length) startP[ei][s]=f;
+        } else { ed+=rem; rem=0; }
+      }
+      done+=t; per++;
+    }
+    totP[s]=per;
+  }
+
+  const arr=Array.from(totP);
+  const toD=p=>addDays(start,Math.round(p)*spLen);
+  const dlMs=dl.getTime();
+
+  return {
+    p50:toD(pct(arr,50)), p85:toD(pct(arr,85)), p95:toD(pct(arr,95)),
+    meetDl: arr.filter(p=>toD(p).getTime()<=dlMs).length/N,
+    endMed:  epics.map((_,i)=>pct(Array.from(endP[i]),50)),
+    endP85:  epics.map((_,i)=>pct(Array.from(endP[i]),85)),
+    stMed:   epics.map((_,i)=>pct(Array.from(startP[i]),50)),
+    stP85:   epics.map((_,i)=>pct(Array.from(startP[i]),85)),
+  };
+}
+
+/* ═══════════════════════════════════
+   GANTT SVG
+═══════════════════════════════════ */
+function gantt(epics, stMed, stP85, endMed, endP85, cfg){
+  const {start, dl, spLen} = cfg;
+  const n=epics.length;
+  const maxP=Math.max(...endP85)*1.08;
+  const dlP=(dl-start)/(spLen*86400000);
+
+  const LW=64,PT=26,PB=30,PR=20,RH=32,GAP=8;
+  const W=820, PW=W-LW-PR;
+  const H=PT+n*(RH+GAP)-GAP+PB;
+
+  const xp=p=>LW+(p/maxP)*PW;
+  const ry=i=>PT+i*(RH+GAP);
+
+  const step=Math.max(1,Math.round(maxP/7));
+  const ticks=[];
+  for(let p=0;p<=Math.ceil(maxP);p+=step) ticks.push(p);
+
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;overflow:visible" xmlns="http://www.w3.org/2000/svg">`;
+
+  // grid + x-axis labels
+  ticks.forEach(p=>{
+    const x=xp(p);
+    const d=addDays(start,Math.round(p)*spLen);
+    s+=`<line x1="${x}" y1="${PT}" x2="${x}" y2="${H-PB}" stroke="#DDE1EA" stroke-width="1"/>`;
+    s+=`<text x="${x}" y="${PT-7}" text-anchor="middle" font-size="10" fill="#878C9B" font-family="DM Sans,system-ui">${d.getDate()} ${PLM[d.getMonth()]}</text>`;
+  });
+
+  // deadline line
+  if(dlP<=maxP){
+    const dlX=xp(dlP);
+    s+=`<line x1="${dlX}" y1="${PT-4}" x2="${dlX}" y2="${H-PB+4}" stroke="#C8102E" stroke-width="2" stroke-dasharray="5,3" opacity=".85"/>`;
+    s+=`<text x="${dlX+4}" y="${PT-7}" font-size="10" font-weight="700" fill="#C8102E" font-family="DM Sans,system-ui">Deadline</text>`;
+  }
+
+  // rows
+  epics.forEach((e,i)=>{
+    const col=COLORS[i%COLORS.length];
+    const y=ry(i), my=y+RH/2;
+    const xs50=xp(stMed[i]),  xe50=xp(endMed[i]);
+    const xs85=xp(stP85[i]),  xe85=xp(endP85[i]);
+
+    // uncertainty band
+    const bx=Math.min(xs50,xs85), bw=Math.max(xe85,xe50)-bx;
+    s+=`<rect x="${bx}" y="${y}" width="${bw}" height="${RH}" rx="5" fill="${col}" opacity=".12"/>`;
+
+    // main bar
+    const bw2=Math.max(xe50-xs50,4);
+    s+=`<rect x="${xs50}" y="${y+4}" width="${bw2}" height="${RH-8}" rx="4" fill="${col}" opacity=".88"/>`;
+
+    // end date label
+    const ed=fmtS(addDays(start,Math.round(endMed[i])*spLen));
+    const lx=xe50+5, fit=(W-lx)>56;
+    s+=`<text x="${fit?lx:xs50+5}" y="${my+4}" font-size="10" font-weight="600" fill="${fit?col:'#fff'}" font-family="DM Sans,system-ui">${ed}</text>`;
+
+    // row label
+    s+=`<text x="${LW-6}" y="${my+4}" text-anchor="end" font-size="11" font-weight="600" fill="${col}" font-family="DM Sans,system-ui">${e.name}</text>`;
+  });
+
+  // legend
+  const ly=H-PB+14;
+  s+=`
+    <rect x="${LW}" y="${ly}" width="12" height="9" rx="3" fill="#4338CA" opacity=".88"/>
+    <text x="${LW+16}" y="${ly+8}" font-size="10" fill="#3D4251" font-family="DM Sans,system-ui">Mediana (P50)</text>
+    <rect x="${LW+120}" y="${ly}" width="12" height="9" rx="3" fill="#4338CA" opacity=".15"/>
+    <text x="${LW+136}" y="${ly+8}" font-size="10" fill="#3D4251" font-family="DM Sans,system-ui">Przedział niepewności (P85)</text>
+    <line x1="${LW+320}" y1="${ly}" x2="${LW+320}" y2="${ly+9}" stroke="#C8102E" stroke-width="2" stroke-dasharray="5,3" opacity=".85"/>
+    <text x="${LW+326}" y="${ly+8}" font-size="10" fill="#3D4251" font-family="DM Sans,system-ui">Deadline</text>`;
+
+  s+='</svg>';
+  return s;
+}
+
+/* ═══════════════════════════════════
+   MAIN RUN
+═══════════════════════════════════ */
+function run(){
+  const btn=document.getElementById('run-btn');
+  btn.disabled=true;
+  btn.innerHTML='<span class="spin">⚙</span> Obliczam…';
+  document.getElementById('output').innerHTML='<div class="loading"><span class="loading-spin">⚙</span>Przeliczam 20 000 symulacji…</div>';
+
+  setTimeout(()=>{
+    try{ _run(); } finally{ btn.disabled=false; btn.innerHTML='🎲 Przelicz scenariusze'; }
+  },40);
+}
+
+function _run(){
+  const cfg = {
+    start:     parseD(document.getElementById('p-start').value),
+    dl:        parseD(document.getElementById('p-deadline').value),
+    spLen:     14,
+    tp:        document.getElementById('p-tp').value.split(',').map(v=>parseFloat(v.trim())).filter(v=>!isNaN(v)&&v>=0),
+    cap:       parseFloat(document.getElementById('p-cap').value)/100,
+    boost:     parseFloat(document.getElementById('p-boost').value)/100,
+    boostFrom: {m:8, y:2026},
+    disc:      parseFloat(document.getElementById('p-disc').value)/100,
+  };
+  if(!cfg.tp.length){ alert('Podaj historyczne tempo!'); return; }
+
+  const epicsCut = EPICS_ALL.slice(0, EPICS_ALL.length - cutN);
+  const cutNames = EPICS_ALL.slice(EPICS_ALL.length - cutN).map(e=>e.name).join(', ');
+  const cutStories = EPICS_ALL.slice(EPICS_ALL.length - cutN);
+  const cutMin = cutStories.reduce((a,e)=>a+e.min,0);
+  const cutMax = cutStories.reduce((a,e)=>a+e.max,0);
+
+  const full = simulate(EPICS_ALL, cfg);
+  const cut  = simulate(epicsCut,  cfg);
+
+  // verdict
+  const fullOk = full.meetDl >= 0.85;
+  const cutOk  = cut.meetDl  >= 0.85;
+  const rec = fullOk ? 'full' : cutOk ? 'cut' : 'neither';
+
+  let vCls, vLabel, vText, vSub;
+  if(rec==='full'){
+    vCls='green'; vLabel='Pełny zakres mieści się w terminie';
+    vText=`Wszystkie ${EPICS_ALL.length} Epiki można dostarczyć do ${fmtS(cfg.dl)} z ${Math.round(full.meetDl*100)}% pewnością.`;
+    vSub='P85 mieści się przed deadlinem. Nie ma podstaw do cięcia zakresu.';
+  } else if(rec==='cut'){
+    vCls='amber'; vLabel='Pełny zakres przekracza termin — cięcie przywraca bezpieczeństwo';
+    vText=`Przy pełnym zakresie ryzyko opóźnienia wynosi ${Math.round((1-full.meetDl)*100)}%. Po usunięciu ${cutNames} deadline jest osiągalny z ${Math.round(cut.meetDl*100)}% pewnością.`;
+    vSub=`P85 po cięciu: ${fmtS(cut.p85)} — mieści się w terminie. Pytanie: czy ${cutNames} można odłożyć?`;
+  } else {
+    vCls='red'; vLabel='Termin zagrożony w obu wariantach';
+    vText=`Nawet po usunięciu ${cutNames} deadline ${fmtS(cfg.dl)} jest trudny — ${Math.round(cut.meetDl*100)}% pewności.`;
+    vSub='Rozważ przesunięcie terminu, zwiększenie pojemności lub głębsze cięcie zakresu.';
+  }
+
+  // prob style
+  const ps = p => p>=.85?'green':p>=.5?'amber':'red';
+  const pi = p => p>=.85?'✓':p>=.5?'⚠':'✗';
+
+  // gantt SVGs
+  const gFull = gantt(EPICS_ALL, full.stMed, full.stP85, full.endMed, full.endP85, cfg);
+  const gCut  = gantt(epicsCut,   cut.stMed,  cut.stP85,  cut.endMed,  cut.endP85,  cfg);
+
+  // factor texts (dynamic)
+  const riskFull = Math.round((1-full.meetDl)*100);
+  const riskCut  = Math.round((1-cut.meetDl)*100);
+
+  document.getElementById('output').innerHTML = `
+
+    <!-- VERDICT -->
+    <div class="verdict ${vCls}">
+      <div class="verdict-bar"></div>
+      <div class="verdict-body">
+        <div class="verdict-label">${vLabel}</div>
+        <div class="verdict-text">${vText}</div>
+        <div class="verdict-sub">${vSub}</div>
+      </div>
+    </div>
+
+    <!-- SCENARIO CARDS -->
+    <div class="sc-grid">
+
+      <div class="sc-card ${rec==='full'?'highlight':''}">
+        ${rec==='full'?'<div class="sc-rec">✓ Rekomendowany</div>':''}
+        <div class="sc-eyebrow">Scenariusz A</div>
+        <div class="sc-name">Pełny zakres</div>
+        <div class="sc-desc">Wszystkie ${EPICS_ALL.length} Epiki</div>
+        <div class="sc-divider"></div>
+        <div class="sc-row"><span class="sc-row-lbl">P50</span><span class="sc-row-val">${fmtM(full.p50)}</span></div>
+        <div class="sc-row"><span class="sc-row-lbl">P85</span><span class="sc-row-val">${fmtM(full.p85)}</span></div>
+        <div class="sc-row"><span class="sc-row-lbl">P95</span><span class="sc-row-val">${fmtM(full.p95)}</span></div>
+        <div class="sc-prob ${ps(full.meetDl)}">${pi(full.meetDl)} ${Math.round(full.meetDl*100)}% szans na termin</div>
+      </div>
+
+      <div class="sc-card ${rec==='cut'?'highlight':''}">
+        ${rec==='cut'?'<div class="sc-rec">✓ Rekomendowany</div>':''}
+        <div class="sc-eyebrow">Scenariusz B</div>
+        <div class="sc-name">Zakres po cięciu</div>
+        <div class="sc-desc">Bez: ${cutNames}</div>
+        <div class="sc-divider"></div>
+        <div class="sc-row"><span class="sc-row-lbl">P50</span><span class="sc-row-val">${fmtM(cut.p50)}</span></div>
+        <div class="sc-row"><span class="sc-row-lbl">P85</span><span class="sc-row-val">${fmtM(cut.p85)}</span></div>
+        <div class="sc-row"><span class="sc-row-lbl">P95</span><span class="sc-row-val">${fmtM(cut.p95)}</span></div>
+        <div class="sc-prob ${ps(cut.meetDl)}">${pi(cut.meetDl)} ${Math.round(cut.meetDl*100)}% szans na termin</div>
+      </div>
+
+      <div class="sc-card">
+        <div class="sc-eyebrow">Koszt cięcia</div>
+        <div class="sc-name">Co odkładamy</div>
+        <div class="sc-desc">${cutNames}</div>
+        <div class="sc-divider"></div>
+        <div class="sc-tradeoff">
+          <div class="sc-tradeoff-title">Zakres odkładany</div>
+          <div style="font-size:13px;color:var(--ink-2);line-height:1.8;margin-bottom:6px">
+            ${cutStories.map(e=>`<strong>${e.name}</strong> — ${e.min}–${e.max} historyjek`).join('<br>')}
+          </div>
+          <div style="font-size:12px;color:var(--ink-3)">Łącznie: ${cutMin}–${cutMax} historyjek</div>
+        </div>
+        <div style="font-size:12px;color:var(--ink-3);margin-top:10px;line-height:1.6">
+          Redukcja ryzyka:<br>
+          <strong style="color:var(--ink)">${riskFull}% → ${riskCut}% opóźnienia</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- GANTT A -->
+    <div class="gantt-wrap">
+      <div class="gantt-head">
+        <div class="gantt-title">Scenariusz A — Pełny zakres · Gantt</div>
+        <div class="gantt-sub">Sekwencyjna kolejność · pasek = mediana P50 · obwódka = rozrzut do P85</div>
+      </div>
+      <div class="gantt-body">${gFull}</div>
+    </div>
+
+    <!-- GANTT B -->
+    <div class="gantt-wrap">
+      <div class="gantt-head">
+        <div class="gantt-title">Scenariusz B — Po cięciu (${epicsCut.map(e=>e.name).join(', ')}) · Gantt</div>
+        <div class="gantt-sub">Sekwencyjna kolejność · pasek = mediana P50 · obwódka = rozrzut do P85</div>
+      </div>
+      <div class="gantt-body">${gCut}</div>
+    </div>
+
+    <!-- DECISION FACTORS -->
+    <div class="factors">
+      <div class="factors-title">Czynniki decyzyjne</div>
+      <div class="factors-grid">
+        <div class="factor">
+          <div class="factor-label">Priorytet biznesowy</div>
+          <div class="factor-text">Czy <strong>${cutNames}</strong> są niezbędne do uruchomienia nowego budżetowania? Czy ich brak blokuje wartość dostarczaną w terminie?</div>
+        </div>
+        <div class="factor">
+          <div class="factor-label">Tolerancja na ryzyko</div>
+          <div class="factor-text">Pełny zakres niesie <strong>${riskFull}% ryzyko opóźnienia</strong>. Po cięciu spada do <strong>${riskCut}%</strong>. Jaki poziom ryzyka jest akceptowalny?</div>
+        </div>
+        <div class="factor">
+          <div class="factor-label">Alternatywy dla cięcia</div>
+          <div class="factor-text">Czy zwiększenie pojemności zespołu (mniej innych zadań, dodatkowa osoba) pozwoliłoby utrzymać pełny zakres bez przesuwania terminu?</div>
+        </div>
+        <div class="factor">
+          <div class="factor-label">Plan dla odłożonego zakresu</div>
+          <div class="factor-text">Jeśli <strong>${cutNames}</strong> zostaną odłożone — kiedy wracają? Kolejny kwartał? Czy mają własny deadline?</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ASSUMPTIONS -->
+    <div class="assumptions">
+      <div class="asm-title">Założenia prognozy</div>
+      <div class="asm-grid">
+        <div class="asm-item"><div class="asm-lbl">Tempo historyczne</div><div class="asm-val">${cfg.tp.join(', ')}</div></div>
+        <div class="asm-item"><div class="asm-lbl">Pojemność na Epiki</div><div class="asm-val">${Math.round(cfg.cap*100)}%</div></div>
+        <div class="asm-item"><div class="asm-lbl">Wzrost od wrz 2026</div><div class="asm-val">+${Math.round(cfg.boost*100)}%</div></div>
+        <div class="asm-item"><div class="asm-lbl">Znane Epiki (1–2)</div><div class="asm-val">−${Math.round(cfg.disc*100)}% rozm.</div></div>
+        <div class="asm-item"><div class="asm-lbl">Długość sprintu</div><div class="asm-val">14 dni</div></div>
+        <div class="asm-item"><div class="asm-lbl">Symulacji</div><div class="asm-val">10 000</div></div>
+      </div>
+    </div>
+
+    <div class="footnote">
+      Prognoza Monte Carlo · 10 000 symulacji per scenariusz · oparta na historycznym tempie zespołu<br>
+      P85 = 85% prawdopodobieństwo ukończenia do tej daty &nbsp;·&nbsp; P95 = data do umów i zobowiązań zewnętrznych<br>
+      <strong>Prognoza odzwierciedla historyczne tempo — nie jest gwarancją.</strong>
+    </div>
+  `;
+}
+
+/* boot */
+window.addEventListener('DOMContentLoaded', ()=>setTimeout(run,40));
+</script>
+</body>
+</html>

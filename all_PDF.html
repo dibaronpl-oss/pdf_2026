@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Zarządczy · Delivery Intelligence</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg:       #F2F3F7;
+  --surface:  #FFFFFF;
+  --s2:       #F7F8FA;
+  --s3:       #EEF0F5;
+  --border:   #E0E4EE;
+  --bd2:      #C5CBDB;
+  --ink:      #0D1017;
+  --ink2:     #3A4058;
+  --ink3:     #7A8099;
+  --ink4:     #B0B6CC;
+
+  --indigo:   #4F46E5; --indigo-bg: #EEF2FF; --indigo-bd: #C7D2FE;
+  --teal:     #0D9488; --teal-bg:   #F0FDFA; --teal-bd:   #99F6E4;
+  --violet:   #7C3AED; --violet-bg: #F5F3FF; --violet-bd: #DDD6FE;
+  --amber:    #D97706; --amber-bg:  #FFFBEB; --amber-bd:  #FDE68A;
+  --rose:     #E11D48; --rose-bg:   #FFF1F2; --rose-bd:   #FECDD3;
+  --green:    #16A34A; --green-bg:  #F0FDF4; --green-bd:  #86EFAC;
+  --slate:    #475569;
+
+  /* probability colors — spec: czerwony=ryzyko, zielony=bezpieczeństwo */
+  --p50c: #DC2626; --p50bg: #FEF2F2; --p50bd: #FECACA;
+  --p85c: #D97706; --p85bg: #FFFBEB; --p85bd: #FDE68A;
+  --p95c: #16A34A; --p95bg: #F0FDF4; --p95bd: #86EFAC;
+
+  --sidebar-w: 220px;
+  --r:  8px;
+  --r2: 12px;
+  --sh:    0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --sh-md: 0 4px 14px rgba(0,0,0,.08), 0 2px 6px rgba(0,0,0,.04);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--ink); font-size: 13px; line-height: 1.55; min-height: 100vh; }
+code, .mono { font-family: 'JetBrains Mono', monospace; }
+
+/* ════ APP SHELL ════ */
+.app { display: flex; min-height: 100vh; }
+
+/* ════ SIDEBAR ════ */
+.sidebar {
+  width: var(--sidebar-w);
+  background: var(--ink);
+  color: #CBD5E1;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.sb-brand {
+  padding: 18px 16px 14px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  flex-shrink: 0;
+}
+.sb-brand-name {
+  font-size: 13px; font-weight: 800; color: #fff;
+  letter-spacing: -.02em; line-height: 1.2;
+}
+.sb-brand-sub { font-size: 10px; color: #64748B; margin-top: 2px; }
+
+.sb-nav { flex: 1; padding: 10px 8px; overflow-y: auto; }
+
+.sb-section-label {
+  font-size: 9px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: #475569;
+  padding: 8px 8px 4px;
+}
+
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 10px; border-radius: 7px;
+  cursor: pointer; color: #94A3B8;
+  font-size: 12px; font-weight: 500;
+  transition: all .15s; margin-bottom: 1px;
+  border: none; background: none; width: 100%; text-align: left;
+}
+.nav-item:hover { background: rgba(255,255,255,.06); color: #E2E8F0; }
+.nav-item.active { background: rgba(255,255,255,.10); color: #fff; font-weight: 600; }
+.nav-item .nav-icon { font-size: 14px; flex-shrink: 0; width: 18px; text-align: center; }
+.nav-item .nav-badge {
+  margin-left: auto; font-size: 9px; font-weight: 700;
+  background: rgba(255,255,255,.12); color: #94A3B8;
+  padding: 1px 6px; border-radius: 8px;
+}
+.nav-item.active .nav-badge { background: var(--indigo); color: #fff; }
+
+.sb-footer {
+  padding: 12px 16px;
+  border-top: 1px solid rgba(255,255,255,.08);
+  font-size: 10px; color: #475569; line-height: 1.6;
+  flex-shrink: 0;
+}
+
+/* ════ MAIN ════ */
+.main { flex: 1; overflow-y: auto; min-width: 0; }
+
+/* ════ PAGE ════ */
+.page { display: none; padding: 24px; }
+.page.active { display: block; }
+
+/* ════ PAGE HEADER ════ */
+.page-hdr { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.page-hdr-left {}
+.page-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--ink3); margin-bottom: 4px; }
+.page-title { font-size: 20px; font-weight: 800; letter-spacing: -.03em; color: var(--ink); line-height: 1.2; }
+.page-sub { font-size: 12px; color: var(--ink3); margin-top: 3px; }
+.page-hdr-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* ════ CARDS & PANELS ════ */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r2); box-shadow: var(--sh); }
+.card + .card, .card + .grid-2, .grid-2 + .card, .grid-2 + .grid-2 { margin-top: 14px; }
+.card-head { padding: 13px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.card-title { font-size: 13px; font-weight: 700; }
+.card-sub   { font-size: 11px; color: var(--ink3); }
+.card-body  { padding: 14px 16px; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
+
+/* ════ KPI CARDS ════ */
+.kpi { border-radius: var(--r2); padding: 14px 16px; border: 1px solid var(--border); background: var(--surface); box-shadow: var(--sh); }
+.kpi-eyebrow { font-size: 9px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; margin-bottom: 4px; color: var(--ink3); }
+.kpi-val  { font-size: 26px; font-weight: 800; letter-spacing: -.04em; line-height: 1; color: var(--ink); }
+.kpi-sub  { font-size: 10px; color: var(--ink3); margin-top: 5px; }
+.kpi-trend { font-size: 11px; font-weight: 600; margin-top: 5px; }
+.kpi.accent-teal   { background: var(--teal-bg);   border-color: var(--teal-bd); }
+.kpi.accent-indigo { background: var(--indigo-bg); border-color: var(--indigo-bd); }
+.kpi.accent-violet { background: var(--violet-bg); border-color: var(--violet-bd); }
+.kpi.accent-amber  { background: var(--amber-bg);  border-color: var(--amber-bd); }
+.kpi.accent-rose   { background: var(--rose-bg);   border-color: var(--rose-bd); }
+.kpi.accent-green  { background: var(--green-bg);  border-color: var(--green-bd); }
+.kpi.accent-teal   .kpi-eyebrow { color: var(--teal); }
+.kpi.accent-indigo .kpi-eyebrow { color: var(--indigo); }
+.kpi.accent-violet .kpi-eyebrow { color: var(--violet); }
+.kpi.accent-amber  .kpi-eyebrow { color: var(--amber); }
+.kpi.accent-rose   .kpi-eyebrow { color: var(--rose); }
+.kpi.accent-green  .kpi-eyebrow { color: var(--green); }
+
+/* prob KPI */
+.kpi.p50 { background: var(--p50bg); border-color: var(--p50bd); }
+.kpi.p85 { background: var(--p85bg); border-color: var(--p85bd); }
+.kpi.p95 { background: var(--p95bg); border-color: var(--p95bd); }
+.kpi.p50 .kpi-eyebrow { color: var(--p50c); }
+.kpi.p85 .kpi-eyebrow { color: var(--p85c); }
+.kpi.p95 .kpi-eyebrow { color: var(--p95c); }
+
+/* ════ FORMS ════ */
+.field { margin-bottom: 10px; }
+.field label { display: block; font-size: 11px; font-weight: 600; color: var(--ink2); margin-bottom: 4px; }
+.field input[type=text], .field input[type=number], .field select, .field textarea {
+  width: 100%; padding: 7px 10px; border-radius: 6px;
+  border: 1.5px solid var(--border); background: var(--s2);
+  font-family: inherit; font-size: 12px; color: var(--ink); outline: none; transition: border-color .15s;
+}
+.field input:focus, .field select:focus, .field textarea:focus { border-color: var(--indigo); background: #fff; }
+.field textarea { resize: none; height: 52px; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+.field-hint { font-size: 10px; color: var(--ink3); margin-top: 3px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+.sl-row { display: flex; align-items: center; gap: 9px; }
+.sl-row input[type=range] { flex: 1; accent-color: var(--indigo); cursor: pointer; }
+.sl-val { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600; min-width: 42px; text-align: right; color: var(--ink); }
+
+/* ════ BUTTONS ════ */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 7px; border: none; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity .15s; }
+.btn-primary { background: var(--ink); color: #fff; }
+.btn-primary:hover { opacity: .82; }
+.btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+.btn-outline { background: none; border: 1.5px solid var(--border); color: var(--ink2); }
+.btn-outline:hover { border-color: var(--indigo); color: var(--indigo); }
+.btn-full { width: 100%; justify-content: center; padding: 9px; font-size: 13px; margin-top: 4px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { display: inline-block; animation: spin .6s linear infinite; }
+
+/* ════ IMPORT AREA ════ */
+.import-drop {
+  border: 2px dashed var(--border); border-radius: var(--r); padding: 20px;
+  text-align: center; cursor: pointer; transition: all .15s; color: var(--ink3);
+  font-size: 12px; background: var(--s2);
+}
+.import-drop:hover { border-color: var(--indigo); background: var(--indigo-bg); color: var(--indigo); }
+.import-drop input { display: none; }
+
+/* ════ TABLES ════ */
+.tbl-wrap { overflow-x: auto; }
+table.dt { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.dt th { text-align: left; padding: 7px 12px; font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--ink3); background: var(--s2); border-bottom: 1.5px solid var(--border); white-space: nowrap; }
+table.dt td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--ink2); }
+table.dt tr:last-child td { border-bottom: none; }
+table.dt tr:hover td { background: var(--s2); }
+.tag { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: 700; }
+.num { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--ink); }
+.num-sig { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--rose); }
+
+/* ════ CHART WRAPS ════ */
+.chart-h200 { position: relative; height: 200px; }
+.chart-h260 { position: relative; height: 260px; }
+.chart-h180 { position: relative; height: 180px; }
+
+/* ════ XMR LINES ════ */
+.xmr-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 11px; color: var(--ink2); }
+.xmr-leg-item { display: flex; align-items: center; gap: 5px; }
+.xmr-swatch-line { width: 20px; height: 2px; border-radius: 1px; }
+.xmr-swatch-dash { width: 20px; height: 0; border-top: 2px dashed; }
+
+/* ════ GANTT ════ */
+.gantt-scroll { overflow-x: auto; }
+
+/* ════ LEAD TIMES ════ */
+.size-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.size-pill { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; cursor: pointer; border: 1.5px solid var(--border); background: var(--s2); color: var(--ink3); transition: all .15s; user-select: none; }
+.size-pill.on-S { background: #DBEAFE; border-color: #93C5FD; color: #1D4ED8; }
+.size-pill.on-M { background: #EDE9FE; border-color: #C4B5FD; color: #6D28D9; }
+.size-pill.on-L { background: #FEF3C7; border-color: #FCD34D; color: #92400E; }
+.zone-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.zone-pill { padding: 4px 11px; border-radius: 20px; font-size: 11px; font-weight: 600; cursor: pointer; border: 1.5px solid; transition: opacity .15s; user-select: none; }
+.zone-pill.dimmed { opacity: .28; }
+
+/* ════ EPIC DRAG TABLE ════ */
+.epic-row-cfg { display: flex; align-items: center; gap: 7px; background: var(--s2); border: 1px solid var(--border); border-radius: var(--r); padding: 8px 10px; margin-bottom: 5px; cursor: grab; }
+.epic-row-cfg:active { cursor: grabbing; }
+.epic-row-cfg.drag-over { border-color: var(--indigo); }
+.drag-handle { color: var(--ink4); font-size: 13px; }
+.epic-dot-sm { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.ef-mini { width: 52px; padding: 3px 6px; border-radius: 5px; border: 1.5px solid var(--border); background: var(--surface); font-family: 'JetBrains Mono', monospace; font-size: 11px; text-align: center; outline: none; }
+.ef-mini:focus { border-color: var(--indigo); }
+.known-tog { font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 10px; border: 1.5px solid var(--border); cursor: pointer; background: var(--surface); color: var(--ink3); white-space: nowrap; }
+.known-tog.on { background: var(--indigo-bg); border-color: var(--indigo-bd); color: var(--indigo); }
+
+/* ════ MONTH MOD TABLE ════ */
+.mtbl { width: 100%; border-collapse: collapse; font-size: 11px; }
+.mtbl th { padding: 5px 8px; font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink3); border-bottom: 1px solid var(--border); background: var(--s2); text-align: center; }
+.mtbl th:first-child { text-align: left; }
+.mtbl td { padding: 4px 8px; border-bottom: 1px solid var(--border); text-align: center; }
+.mtbl tr:last-child td { border-bottom: none; }
+.mtbl-name { font-weight: 600; text-align: left !important; color: var(--ink2); }
+.mod-inp { width: 56px; padding: 3px 5px; border-radius: 5px; border: 1.5px solid var(--border); background: var(--surface); font-family: 'JetBrains Mono', monospace; font-size: 11px; text-align: center; outline: none; }
+.mod-inp:focus { border-color: var(--indigo); }
+
+/* ════ OVERVIEW SUMMARY ════ */
+.ov-metric { display: flex; flex-direction: column; gap: 2px; }
+.ov-lbl { font-size: 10px; color: var(--ink3); }
+.ov-val { font-size: 20px; font-weight: 800; letter-spacing: -.03em; }
+
+/* ════ EMPTY / LOADING ════ */
+.empty { padding: 40px; text-align: center; color: var(--ink3); font-size: 12px; line-height: 1.7; }
+.empty-icon { font-size: 28px; display: block; margin-bottom: 8px; }
+
+/* ════ VERDICT BANNER ════ */
+.verdict { border-radius: var(--r); padding: 14px 18px; border: 1.5px solid; display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
+.verdict-bar { width: 4px; border-radius: 3px; align-self: stretch; flex-shrink: 0; }
+.verdict.green { background: var(--green-bg); border-color: var(--green-bd); } .verdict.green .verdict-bar { background: var(--green); }
+.verdict.amber { background: var(--amber-bg); border-color: var(--amber-bd); } .verdict.amber .verdict-bar { background: var(--amber); }
+.verdict.rose  { background: var(--rose-bg);  border-color: var(--rose-bd);  } .verdict.rose  .verdict-bar { background: var(--rose); }
+.verdict-label { font-size: 9px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; margin-bottom: 3px; }
+.verdict.green .verdict-label { color: var(--green); }
+.verdict.amber .verdict-label { color: var(--amber); }
+.verdict.rose  .verdict-label { color: var(--rose); }
+.verdict-text { font-size: 13px; font-weight: 600; color: var(--ink); line-height: 1.4; }
+.verdict-sub  { font-size: 12px; color: var(--ink2); margin-top: 3px; line-height: 1.5; }
+
+/* ════ MISC ════ */
+.divider { height: 1px; background: var(--border); margin: 14px 0; }
+.badge-sig { background: var(--rose-bg); color: var(--rose); border: 1px solid var(--rose-bd); }
+.badge-ok  { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-bd); }
+.badge-neu { background: var(--s3); color: var(--ink3); border: 1px solid var(--border); }
+.text-muted { color: var(--ink3); font-size: 11px; }
+
+@media (max-width: 840px) {
+  .sidebar { display: none; }
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ══════════════ SIDEBAR ══════════════ -->
+<aside class="sidebar">
+  <div class="sb-brand">
+    <div class="sb-brand-name">Delivery Intelligence</div>
+    <div class="sb-brand-sub">Dashboard zarządczy · 2024–26</div>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-section-label">Przegląd</div>
+    <button class="nav-item active" onclick="goto('overview')">
+      <span class="nav-icon">🏠</span> Przegląd ogólny
+    </button>
+
+    <div class="sb-section-label">Historyczne</div>
+    <button class="nav-item" onclick="goto('leadtimes')">
+      <span class="nav-icon">⏱</span> Lead Times
+      <span class="nav-badge">S/M/L</span>
+    </button>
+    <button class="nav-item" onclick="goto('xmr')">
+      <span class="nav-icon">📈</span> Tempo XmR
+      <span class="nav-badge">XmR</span>
+    </button>
+
+    <div class="sb-section-label">Prognoza</div>
+    <button class="nav-item" onclick="goto('montecarlo')">
+      <span class="nav-icon">🎲</span> Monte Carlo Epiki
+      <span class="nav-badge">MC</span>
+    </button>
+    <button class="nav-item" onclick="goto('decision')">
+      <span class="nav-icon">⚖️</span> Zakres vs Termin
+    </button>
+
+    <div class="sb-section-label">Ustawienia</div>
+    <button class="nav-item" onclick="goto('import')">
+      <span class="nav-icon">📥</span> Import danych
+    </button>
+  </nav>
+  <div class="sb-footer">
+    Monte Carlo · 10 000 symulacji<br>
+    Dane: plik Throughput_Daily.xlsx
+  </div>
+</aside>
+
+<!-- ══════════════ MAIN ══════════════ -->
+<main class="main">
+
+<!-- ─────────────────────────────────
+     1. OVERVIEW
+───────────────────────────────── -->
+<div class="page active" id="page-overview">
+  <div class="page-hdr">
+    <div class="page-hdr-left">
+      <div class="page-eyebrow">Dashboard zarządczy</div>
+      <div class="page-title">Przegląd dostarczania</div>
+      <div class="page-sub">Lead Times · Tempo XmR · Prognoza Epików · Decyzja o zakresie</div>
+    </div>
+    <div class="page-hdr-right">
+      <button class="btn btn-primary" onclick="runAll()">🔄 Odśwież wszystko</button>
+    </div>
+  </div>
+
+  <!-- KPI strip -->
+  <div class="grid-4" style="margin-bottom:14px" id="ov-kpis">
+    <div class="kpi accent-teal"><div class="kpi-eyebrow">Łączne zadania</div><div class="kpi-val" id="ov-total">203</div><div class="kpi-sub">ze wszystkich danych</div></div>
+    <div class="kpi accent-indigo"><div class="kpi-eyebrow">Mediana tygodniowa</div><div class="kpi-val" id="ov-median">15</div><div class="kpi-sub">zadań / tydzień (XmR CL)</div></div>
+    <div class="kpi accent-violet"><div class="kpi-eyebrow">Epiki — P85</div><div class="kpi-val" id="ov-p85">—</div><div class="kpi-sub">data dostarczenia Epików</div></div>
+    <div class="kpi accent-amber"><div class="kpi-eyebrow">Szansa na deadline</div><div class="kpi-val" id="ov-dl-pct">—</div><div class="kpi-sub">31 październik 2026</div></div>
+  </div>
+
+  <div class="grid-2">
+    <!-- Mini XmR chart -->
+    <div class="card">
+      <div class="card-head"><div class="card-title">Tempo tygodniowe (XmR)</div><div class="card-sub" style="cursor:pointer;color:var(--indigo)" onclick="goto('xmr')">→ pełny widok</div></div>
+      <div class="card-body"><div class="chart-h200"><canvas id="ov-xmr-canvas"></canvas></div></div>
+    </div>
+    <!-- Mini scatter lead times -->
+    <div class="card">
+      <div class="card-head"><div class="card-title">Lead Times (S / M / L)</div><div class="card-sub" style="cursor:pointer;color:var(--indigo)" onclick="goto('leadtimes')">→ pełny widok</div></div>
+      <div class="card-body"><div class="chart-h200"><canvas id="ov-lt-canvas"></canvas></div></div>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px">
+    <!-- Mini Gantt MC -->
+    <div class="card">
+      <div class="card-head"><div class="card-title">Prognoza Epików — Gantt P85</div><div class="card-sub" style="cursor:pointer;color:var(--indigo)" onclick="goto('montecarlo')">→ pełny widok</div></div>
+      <div class="card-body"><div id="ov-gantt-mini" class="empty"><span class="empty-icon">🎲</span>Kliknij „Odśwież wszystko"</div></div>
+    </div>
+    <!-- System health -->
+    <div class="card">
+      <div class="card-head"><div class="card-title">Stan systemu dostarczania</div></div>
+      <div class="card-body" id="ov-health">
+        <div class="empty"><span class="empty-icon">📊</span>Kliknij „Odśwież wszystko"</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────
+     2. LEAD TIMES
+───────────────────────────────── -->
+<div class="page" id="page-leadtimes">
+  <div class="page-hdr">
+    <div class="page-hdr-left">
+      <div class="page-eyebrow">Dane historyczne</div>
+      <div class="page-title">Lead Times zadań</div>
+      <div class="page-sub">Czas realizacji wg rozmiaru S / M / L · percentyle 50 / 85 / 95</div>
+    </div>
+    <div class="page-hdr-right">
+      <div class="size-pills" id="lt-size-pills">
+        <div class="size-pill on-S" data-size="S" onclick="ltToggleSize('S')">S</div>
+        <div class="size-pill on-M" data-size="M" onclick="ltToggleSize('M')">M</div>
+        <div class="size-pill on-L" data-size="L" onclick="ltToggleSize('L')">L</div>
+      </div>
+      <div class="zone-pills" id="lt-zone-pills">
+        <div class="zone-pill" data-zone="ok"   style="background:#DCFCE7;border-color:#86EFAC;color:#166534" onclick="ltToggleZone('ok')">≤P50</div>
+        <div class="zone-pill" data-zone="warn" style="background:#FEF3C7;border-color:#FCD34D;color:#92400E" onclick="ltToggleZone('warn')">P50–P85</div>
+        <div class="zone-pill" data-zone="risk" style="background:#FEE2E2;border-color:#FCA5A5;color:#991B1B" onclick="ltToggleZone('risk')">P85–P95</div>
+        <div class="zone-pill" data-zone="out"  style="background:#F3F4F6;border-color:#D1D5DB;color:#4B5563" onclick="ltToggleZone('out')">&gt;P95</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI per size -->
+  <div class="grid-3" id="lt-kpis" style="margin-bottom:14px"></div>
+
+  <!-- Scatter chart -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-head"><div class="card-title">Scatterplot czasu realizacji</div><div class="card-sub">Kolor punktu = strefa percentylowa · kształt = rozmiar</div></div>
+    <div class="card-body"><div class="chart-h260"><canvas id="lt-scatter"></canvas></div></div>
+  </div>
+
+  <!-- Table -->
+  <div class="card">
+    <div class="card-head"><div class="card-title">Wszystkie zadania</div><div class="card-sub" id="lt-tbl-count"></div></div>
+    <div class="card-body" style="padding:0">
+      <div class="tbl-wrap"><table class="dt" id="lt-table"><thead><tr><th>Data</th><th>Rozmiar</th><th>Dni</th><th>Strefa</th></tr></thead><tbody id="lt-tbody"></tbody></table></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────
+     3. XMR
+───────────────────────────────── -->
+<div class="page" id="page-xmr">
+  <div class="page-hdr">
+    <div class="page-hdr-left">
+      <div class="page-eyebrow">Wykresy kontrolne</div>
+      <div class="page-title">Tempo dostarczania · XmR</div>
+      <div class="page-sub">Tygodniowy throughput · granice naturalne oparte na medianie · 103 dni danych</div>
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div class="grid-4" style="margin-bottom:14px" id="xmr-kpis"></div>
+
+  <!-- X chart -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-head"><div class="card-title">Wykres X — Tygodniowy throughput</div><div class="card-sub">Strefy kolorystyczne = przedziały percentylowe · punkty poza granicami = sygnały</div></div>
+    <div class="card-body">
+      <div class="chart-h260"><canvas id="xmr-x-canvas"></canvas></div>
+      <div class="xmr-legend">
+        <div class="xmr-leg-item"><div class="xmr-swatch-dash" style="border-color:#2563EB"></div> CL (mediana)</div>
+        <div class="xmr-leg-item"><div class="xmr-swatch-dash" style="border-color:#DC2626"></div> UNPL</div>
+        <div class="xmr-leg-item"><div class="xmr-swatch-dash" style="border-color:#16A34A"></div> LNPL</div>
+        <div class="xmr-leg-item"><span style="color:#DC2626;font-size:13px">⬤</span> Signal</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- mR chart -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-head"><div class="card-title">Wykres mR — Moving Range</div><div class="card-sub">Zmiana throughputu między kolejnymi tygodniami</div></div>
+    <div class="card-body">
+      <div class="chart-h180"><canvas id="xmr-mr-canvas"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Weekly table -->
+  <div class="card">
+    <div class="card-head"><div class="card-title">Dane tygodniowe</div><div class="card-sub">15 tygodni · 07/01/2025 – 19/04/2025</div></div>
+    <div class="card-body" style="padding:0"><div class="tbl-wrap"><table class="dt" id="xmr-tbl"><thead><tr><th>#</th><th>Tydzień od</th><th>Tydzień do</th><th>Throughput</th><th>mR</th><th>Signal X</th><th>Signal mR</th></tr></thead><tbody id="xmr-tbody"></tbody></table></div></div>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────
+     4. MONTE CARLO EPIKI
+───────────────────────────────── -->
+<div class="page" id="page-montecarlo">
+  <div class="page-hdr">
+    <div class="page-hdr-left">
+      <div class="page-eyebrow">Prognoza probabilistyczna</div>
+      <div class="page-title">Monte Carlo · Epiki</div>
+      <div class="page-sub">10 000 symulacji · start 1 lip 2026 · deadline 31 paź 2026</div>
+    </div>
+    <div class="page-hdr-right">
+      <button class="btn btn-primary" id="mc-run-btn" onclick="mcRun()">🎲 Uruchom</button>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <!-- Config left -->
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-head"><div class="card-title">Parametry</div></div>
+        <div class="card-body">
+          <div class="row2">
+            <div class="field"><label>Start</label><input type="text" id="mc-start" value="01/07/2026"></div>
+            <div class="field"><label>Deadline</label><input type="text" id="mc-dl" value="31/10/2026"></div>
+          </div>
+          <div class="field"><label>Tempo historyczne (hist./sprint)</label><textarea id="mc-tp">3, 4, 5, 4, 2, 7, 4, 5</textarea></div>
+          <div class="field"><label>Pojemność na Epiki</label>
+            <div class="sl-row"><input type="range" id="mc-cap" min="10" max="100" value="75" oninput="setV('mc-cap-v',this.value+'%')"><span class="sl-val" id="mc-cap-v">75%</span></div>
+          </div>
+          <div class="field"><label>WIP limit (równoległe Epiki)</label>
+            <div class="sl-row"><input type="range" id="mc-wip" min="1" max="6" value="1" step="1" oninput="setV('mc-wip-v',this.value)"><span class="sl-val" id="mc-wip-v">1</span></div>
+          </div>
+          <div class="field"><label>Redukcja rozmiaru znanych Epików</label>
+            <div class="sl-row"><input type="range" id="mc-disc" min="0" max="50" value="15" oninput="setV('mc-disc-v','-'+this.value+'%')"><span class="sl-val" id="mc-disc-v">-15%</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-head"><div class="card-title">Epiki — kolejność i estymacje</div><div class="card-sub">Przeciągnij by zmienić kolejność</div></div>
+        <div class="card-body">
+          <div id="mc-epic-list"></div>
+          <button onclick="mcAddEpic()" style="font-size:11px;font-weight:600;color:var(--indigo);background:none;border:1.5px dashed var(--indigo-bd);border-radius:6px;padding:5px 12px;cursor:pointer;width:100%;margin-top:6px">+ Dodaj Epik</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-title">Modyfikatory miesięczne</div><div class="card-sub">100% = bez zmiany</div></div>
+        <div class="card-body"><table class="mtbl" id="mc-mtbl"><thead><tr><th>Miesiąc</th><th>Modyfikator (%)</th></tr></thead><tbody id="mc-mtbl-body"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- Results right -->
+    <div>
+      <div class="grid-3" id="mc-kpi-strip" style="margin-bottom:14px">
+        <div class="kpi p50"><div class="kpi-eyebrow">P50</div><div class="kpi-val" id="mc-p50-val">—</div><div class="kpi-sub">data ryzyka</div></div>
+        <div class="kpi p85"><div class="kpi-eyebrow">P85</div><div class="kpi-val" id="mc-p85-val">—</div><div class="kpi-sub">data planistyczna</div></div>
+        <div class="kpi p95"><div class="kpi-eyebrow">P95</div><div class="kpi-val" id="mc-p95-val">—</div><div class="kpi-sub">data bezpieczna</div></div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-head"><div class="card-title">Szansa na deadline</div><div class="card-sub" id="mc-dl-sub"></div></div>
+        <div class="card-body" id="mc-dl-body"><div class="empty"><span class="empty-icon">🎲</span>Uruchom symulację</div></div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-head"><div class="card-title">Gantt P50 / P85 / P95</div><div class="card-sub">Trzy pasma per Epik · czerwony=ryzyko · zielony=bezpieczne</div></div>
+        <div class="card-body" style="padding:10px 8px"><div class="gantt-scroll" id="mc-gantt"></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-title">Rozkład symulacji</div></div>
+        <div class="card-body"><div class="chart-h200"><canvas id="mc-hist"></canvas></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────
+     5. DECISION
+───────────────────────────────── -->
+<div class="page" id="page-decision">
+  <div class="page-hdr">
+    <div class="page-hdr-left">
+      <div class="page-eyebrow">Analiza decyzyjna</div>
+      <div class="page-title">Zakres vs Termin</div>
+      <div class="page-sub">Porównanie pełnego zakresu z wariantem po cięciu · 10 000 symulacji / scenariusz</div>
+    </div>
+    <div class="page-hdr-right">
+      <div style="display:flex;gap:6px;align-items:center">
+        <span style="font-size:11px;color:var(--ink3)">Wariant cięcia:</span>
+        <div id="cut-btns" style="display:flex;gap:4px">
+          <button class="btn btn-outline" data-cut="1" onclick="setCut(1)" style="font-size:11px;padding:4px 10px">-1 Epik</button>
+          <button class="btn btn-primary" data-cut="2" onclick="setCut(2)" style="font-size:11px;padding:4px 10px">-2 Epiki</button>
+          <button class="btn btn-outline" data-cut="3" onclick="setCut(3)" style="font-size:11px;padding:4px 10px">-3 Epiki</button>
+        </div>
+        <button class="btn btn-primary" id="dec-run-btn" onclick="decRun()">⚖️ Przelicz</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dec-verdict"></div>
+
+  <div class="grid-3" id="dec-cards" style="margin-bottom:14px">
+    <div class="empty" style="grid-column:1/-1"><span class="empty-icon">⚖️</span>Kliknij „Przelicz"</div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Scenariusz A — Pełny zakres</div></div>
+      <div class="card-body" style="padding:10px 8px"><div class="gantt-scroll" id="dec-gantt-full"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title" id="dec-gantt-b-title">Scenariusz B — Po cięciu</div></div>
+      <div class="card-body" style="padding:10px 8px"><div class="gantt-scroll" id="dec-gantt-cut"></div></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="card-head"><div class="card-title">Czynniki decyzyjne</div></div>
+    <div class="card-body" id="dec-factors">
+      <div class="grid-2">
+        <div style="background:var(--s2);border-radius:var(--r);padding:12px 14px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:5px">Priorytet biznesowy</div><div style="font-size:12px;color:var(--ink2);line-height:1.7">Czy usunięte Epiki są niezbędne do uruchomienia budżetowania? Czy ich brak blokuje wartość?</div></div>
+        <div style="background:var(--s2);border-radius:var(--r);padding:12px 14px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:5px">Alternatywy dla cięcia</div><div style="font-size:12px;color:var(--ink2);line-height:1.7">Czy zwiększenie pojemności zespołu pozwoliłoby utrzymać pełny zakres bez przesuwania terminu?</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────
+     6. IMPORT
+───────────────────────────────── -->
+<div class="page" id="page-import">
+  <div class="page-hdr">
+    <div class="page-hdr-left">
+      <div class="page-eyebrow">Zarządzanie danymi</div>
+      <div class="page-title">Import danych</div>
+      <div class="page-sub">Wczytaj nowe dane do każdego modułu</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Lead Times · CSV</div></div>
+      <div class="card-body">
+        <div class="import-drop" onclick="document.getElementById('lt-file').click()" ondragover="event.preventDefault()" ondrop="ltHandleDrop(event)">
+          <input type="file" id="lt-file" accept=".csv" onchange="ltHandleFile(this.files[0])">
+          <div style="font-size:22px;margin-bottom:6px">📋</div>
+          <div style="font-weight:600;margin-bottom:4px">Przeciągnij lub kliknij</div>
+          <div style="font-size:11px">Kolumny: data, rozmiar, dni</div>
+        </div>
+        <div style="margin-top:10px;background:var(--s2);border-radius:var(--r);padding:10px 12px;font-size:11px;color:var(--ink3);font-family:'JetBrains Mono',monospace;line-height:1.8">
+          data,rozmiar,dni<br>2025-01-15,S,32<br>2025-01-22,M,87
+        </div>
+        <div id="lt-import-msg" style="font-size:11px;color:var(--green);margin-top:8px"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">Throughput dzienny · CSV</div></div>
+      <div class="card-body">
+        <div class="import-drop" onclick="document.getElementById('tp-file').click()" ondragover="event.preventDefault()" ondrop="tpHandleDrop(event)">
+          <input type="file" id="tp-file" accept=".csv" onchange="tpHandleFile(this.files[0])">
+          <div style="font-size:22px;margin-bottom:6px">📊</div>
+          <div style="font-weight:600;margin-bottom:4px">Przeciągnij lub kliknij</div>
+          <div style="font-size:11px">Kolumny: data (DD/MM/YYYY), przepustowość</div>
+        </div>
+        <div style="margin-top:10px;background:var(--s2);border-radius:var(--r);padding:10px 12px;font-size:11px;color:var(--ink3);font-family:'JetBrains Mono',monospace;line-height:1.8">
+          data,przepustowość<br>07/01/2025,0<br>08/01/2025,2
+        </div>
+        <div id="tp-import-msg" style="font-size:11px;color:var(--green);margin-top:8px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+</div><!-- /app -->
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   GLOBAL DATA — dane z pliku Throughput_Daily.xlsx + lead times
+═══════════════════════════════════════════════════════════ */
+
+// ── Throughput daily (103 wiersze, 07/01–19/04/2025) ──
+let DAILY_TP = [
+  ['07/01/2025',0],['08/01/2025',2],['09/01/2025',10],['10/01/2025',3],
+  ['11/01/2025',0],['12/01/2025',0],['13/01/2025',2],['14/01/2025',3],
+  ['15/01/2025',7],['16/01/2025',0],['17/01/2025',0],['18/01/2025',0],
+  ['19/01/2025',0],['20/01/2025',5],['21/01/2025',2],['22/01/2025',0],
+  ['23/01/2025',0],['24/01/2025',0],['25/01/2025',0],['26/01/2025',0],
+  ['27/01/2025',1],['28/01/2025',1],['29/01/2025',0],['30/01/2025',5],
+  ['31/01/2025',4],['01/02/2025',0],['02/02/2025',0],['03/02/2025',7],
+  ['04/02/2025',0],['05/02/2025',2],['06/02/2025',2],['07/02/2025',12],
+  ['08/02/2025',0],['09/02/2025',0],['10/02/2025',1],['11/02/2025',0],
+  ['12/02/2025',0],['13/02/2025',2],['14/02/2025',12],['15/02/2025',0],
+  ['16/02/2025',0],['17/02/2025',1],['18/02/2025',0],['19/02/2025',0],
+  ['20/02/2025',3],['21/02/2025',11],['22/02/2025',0],['23/02/2025',0],
+  ['24/02/2025',6],['25/02/2025',0],['26/02/2025',0],['27/02/2025',6],
+  ['28/02/2025',7],['01/03/2025',0],['02/03/2025',0],['03/03/2025',2],
+  ['04/03/2025',0],['05/03/2025',0],['06/03/2025',3],['07/03/2025',5],
+  ['08/03/2025',0],['09/03/2025',0],['10/03/2025',1],['11/03/2025',0],
+  ['12/03/2025',0],['13/03/2025',9],['14/03/2025',7],['15/03/2025',0],
+  ['16/03/2025',0],['17/03/2025',3],['18/03/2025',0],['19/03/2025',0],
+  ['20/03/2025',4],['21/03/2025',10],['22/03/2025',0],['23/03/2025',0],
+  ['24/03/2025',1],['25/03/2025',0],['26/03/2025',0],['27/03/2025',5],
+  ['28/03/2025',1],['29/03/2025',0],['30/03/2025',0],['31/03/2025',2],
+  ['01/04/2025',0],['02/04/2025',0],['03/04/2025',2],['04/04/2025',11],
+  ['05/04/2025',0],['06/04/2025',0],['07/04/2025',1],['08/04/2025',0],
+  ['09/04/2025',0],['10/04/2025',5],['11/04/2025',2],['12/04/2025',0],
+  ['13/04/2025',0],['14/04/2025',1],['15/04/2025',0],['16/04/2025',0],
+  ['17/04/2025',4],['18/04/2025',7],['19/04/2025',0]
+];
+
+// ── Lead Times (z poprzedniego dashboardu) ──
+let LT_DATA = [
+  {date:'2024-07-15',size:'S',days:49},{date:'2024-08-22',size:'S',days:48},
+  {date:'2024-09-10',size:'S',days:87},{date:'2024-09-25',size:'M',days:57},
+  {date:'2024-10-05',size:'M',days:148},{date:'2024-10-14',size:'S',days:53},
+  {date:'2024-10-28',size:'S',days:45},{date:'2024-11-18',size:'M',days:145},
+  {date:'2024-12-04',size:'L',days:105},{date:'2025-01-08',size:'S',days:5},
+  {date:'2025-01-20',size:'L',days:163},{date:'2025-02-14',size:'S',days:43},
+  {date:'2025-02-26',size:'M',days:415},{date:'2025-03-15',size:'L',days:123},
+  {date:'2025-04-10',size:'M',days:103},{date:'2025-05-05',size:'L',days:104},
+  {date:'2025-06-12',size:'L',days:302},{date:'2025-06-25',size:'L',days:158},
+  {date:'2025-07-02',size:'L',days:98},{date:'2025-07-11',size:'S',days:52},
+  {date:'2025-07-18',size:'M',days:95},{date:'2025-07-29',size:'S',days:70},
+  {date:'2025-08-03',size:'M',days:95},{date:'2025-08-14',size:'M',days:101},
+  {date:'2025-08-21',size:'M',days:57},{date:'2025-08-29',size:'M',days:57},
+  {date:'2025-09-08',size:'S',days:53},{date:'2025-09-22',size:'L',days:137},
+  {date:'2025-10-04',size:'S',days:73},{date:'2025-10-12',size:'M',days:60},
+  {date:'2025-10-19',size:'S',days:126},{date:'2025-10-27',size:'M',days:57},
+  {date:'2025-11-05',size:'L',days:124},{date:'2025-11-15',size:'M',days:75},
+  {date:'2025-11-25',size:'M',days:89},{date:'2025-12-10',size:'S',days:44}
+];
+
+// ── Epics config ──
+let MC_EPICS = [
+  {name:'Epik 1',min:4,max:6,known:true},
+  {name:'Epik 2',min:3,max:5,known:true},
+  {name:'Epik 3',min:3,max:4,known:false},
+  {name:'Epik 4',min:3,max:5,known:false},
+  {name:'Epik 5',min:4,max:7,known:false},
+  {name:'Epik 6',min:4,max:8,known:false},
+];
+let MC_MONTH_MODS = {};
+let MC_DRAG_SRC = null;
+let DEC_CUT_N = 2;
+
+// Chart instances
+let charts = {};
+const N_SIM = 10000;
+const EPIC_COLORS = ['#0D9488','#4338CA','#C2770A','#BE123C','#6D28D9','#059669','#0EA5E9','#9333EA'];
+const SIZE_COLORS = {S:'#3B82F6', M:'#7C3AED', L:'#D97706'};
+const PLM = ['sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paź','lis','gru'];
+const LT_ACTIVE = {S:true,M:true,L:true};
+const ZONE_ACTIVE = {ok:true,warn:true,risk:true,out:true};
+
+/* ══ HELPERS ══ */
+function setV(id,v){document.getElementById(id).textContent=v;}
+function addDays(d,n){const r=new Date(d);r.setDate(r.getDate()+n);return r;}
+function parseDate(s){const[d,m,y]=s.trim().split('/');return new Date(+y,+m-1,+d);}
+function parseDateISO(s){const[y,m,d]=s.split('-');return new Date(+y,+m-1,+d);}
+function parseDateAuto(s){if(s.includes('-'))return parseDateISO(s);return parseDate(s);}
+function fmtS(d){return d.toLocaleDateString('pl-PL',{day:'2-digit',month:'2-digit',year:'numeric'});}
+function fmtM(d){return d.toLocaleDateString('pl-PL',{day:'numeric',month:'short'});}
+function pct(arr,p){const s=[...arr].sort((a,b)=>a-b);const pos=(s.length-1)*p/100,lo=Math.floor(pos),hi=Math.ceil(pos);return s[lo]+(s[hi]-s[lo])*(pos-lo);}
+function median(arr){return pct(arr,50);}
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+function mkChart(id,cfg){destroyChart(id);charts[id]=new Chart(document.getElementById(id),cfg);return charts[id];}
+
+/* ══ NAV ══ */
+function goto(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelector(`.nav-item[onclick="goto('${name}')"]`)?.classList.add('active');
+  if(name==='leadtimes')ltRender();
+  if(name==='xmr')xmrRender();
+}
+
+/* ══════════════════════════════════════════════════════
+   XMR MODULE
+══════════════════════════════════════════════════════ */
+function xmrAggregate(){
+  const map={};
+  DAILY_TP.forEach(([ds,v])=>{
+    const d=parseDate(ds);
+    const day=d.getDay();
+    const diff=day===0?6:day-1;
+    const mon=new Date(d);mon.setDate(d.getDate()-diff);
+    const key=mon.toISOString().slice(0,10);
+    if(!map[key])map[key]={weekStart:new Date(mon),weekEnd:addDays(mon,6),tp:0};
+    map[key].tp+=v;
+  });
+  return Object.values(map).sort((a,b)=>a.weekStart-b.weekStart)
+    .map((w,i,arr)=>({...w,mR:i===0?null:Math.abs(w.tp-arr[i-1].tp)}));
+}
+
+function xmrLimits(weeks){
+  const xv=weeks.map(w=>w.tp);
+  const mrv=weeks.filter(w=>w.mR!==null).map(w=>w.mR);
+  const xcl=median(xv), mmed=median(mrv);
+  return{xcl,mmed,unpl:xcl+3.145*mmed,lnpl:Math.max(0,xcl-3.145*mmed),mrcl:mmed,mrunpl:3.865*mmed};
+}
+
+function xmrRender(){
+  const weeks=xmrAggregate();
+  const lim=xmrLimits(weeks);
+  const r1=v=>Math.round(v*10)/10;
+
+  // KPIs
+  const xv=weeks.map(w=>w.tp);
+  const sigs=weeks.filter(w=>w.tp>lim.unpl||w.tp<lim.lnpl).length;
+  const msigs=weeks.filter(w=>w.mR!==null&&w.mR>lim.mrunpl).length;
+  document.getElementById('xmr-kpis').innerHTML=`
+    <div class="kpi accent-teal"><div class="kpi-eyebrow">Mediana (CL)</div><div class="kpi-val">${r1(lim.xcl)}</div><div class="kpi-sub">zadań / tydzień</div></div>
+    <div class="kpi accent-indigo"><div class="kpi-eyebrow">UNPL</div><div class="kpi-val">${r1(lim.unpl)}</div><div class="kpi-sub">górna granica</div></div>
+    <div class="kpi accent-green"><div class="kpi-eyebrow">MR median</div><div class="kpi-val">${r1(lim.mmed)}</div><div class="kpi-sub">mediana moving range</div></div>
+    <div class="kpi ${sigs+msigs>0?'accent-rose':'accent-green'}"><div class="kpi-eyebrow">Sygnały</div><div class="kpi-val">${sigs+msigs}</div><div class="kpi-sub">punkty poza granicami</div></div>`;
+
+  const labels=weeks.map(w=>fmtM(w.weekStart));
+  const xvals=weeks.map(w=>w.tp);
+  const n=weeks.length;
+  const isSig=w=>w.tp>lim.unpl||w.tp<lim.lnpl;
+  const ptC=weeks.map(w=>isSig(w)?'#DC2626':'#2563EB');
+  const ptR=weeks.map(w=>isSig(w)?8:5);
+
+  // Zone band plugin
+  const zoneBgPlugin={id:'zoneBg',beforeDraw(chart){
+    const{ctx,chartArea:{left,right,top,bottom},scales:{y}}=chart;
+    const zones=[[0,lim.lnpl,'rgba(220,252,231,.35)'],[lim.lnpl,lim.xcl,'rgba(254,249,195,.35)'],[lim.xcl,lim.unpl,'rgba(254,249,195,.35)'],[lim.unpl,Math.max(lim.unpl+5,...xvals),'rgba(254,226,226,.35)']];
+    zones.forEach(([lo,hi,col])=>{
+      const y0=y.getPixelForValue(hi),y1=y.getPixelForValue(Math.max(lo,0));
+      ctx.fillStyle=col;ctx.fillRect(left,Math.min(y0,top),right-left,Math.max(y1-y0,0));
+    });
+  }};
+
+  mkChart('xmr-x-canvas',{type:'line',plugins:[zoneBgPlugin],data:{labels,datasets:[
+    {label:'Throughput',data:xvals,borderColor:'#2563EB',borderWidth:2.5,fill:false,tension:.15,
+     pointRadius:ptR,pointBackgroundColor:ptC,pointBorderColor:'#fff',pointBorderWidth:2,order:1},
+    {label:`CL=${r1(lim.xcl)}`,data:Array(n).fill(lim.xcl),borderColor:'#2563EB',borderWidth:1.5,borderDash:[6,4],pointRadius:0,fill:false},
+    {label:`UNPL=${r1(lim.unpl)}`,data:Array(n).fill(lim.unpl),borderColor:'#DC2626',borderWidth:1.5,borderDash:[6,4],pointRadius:0,fill:false},
+    {label:`LNPL=${r1(lim.lnpl)}`,data:Array(n).fill(lim.lnpl),borderColor:'#16A34A',borderWidth:1.5,borderDash:[6,4],pointRadius:0,fill:false},
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>`Tydzień ${i[0].label}`,label:i=>i.datasetIndex===0?` Throughput: ${i.raw}${isSig(weeks[i.dataIndex])?'  ⚠ Signal':''}`:` ${i.dataset.label}`}}},scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#7A8099'}},y:{min:0,grid:{color:'#E0E4EE'},ticks:{font:{size:10},color:'#7A8099'}}}}});
+
+  const mrvals=weeks.map(w=>w.mR);
+  const mrC=weeks.map(w=>w.mR!==null&&w.mR>lim.mrunpl?'#DC2626':'#7C3AED');
+  mkChart('xmr-mr-canvas',{type:'line',data:{labels,datasets:[
+    {label:'mR',data:mrvals,borderColor:'#7C3AED',borderWidth:2.5,fill:false,tension:.15,spanGaps:false,
+     pointRadius:weeks.map(w=>w.mR===null?0:w.mR>lim.mrunpl?8:5),pointBackgroundColor:mrC,pointBorderColor:'#fff',pointBorderWidth:2},
+    {label:`MR_CL=${r1(lim.mrcl)}`,data:Array(n).fill(lim.mrcl),borderColor:'#2563EB',borderWidth:1.5,borderDash:[6,4],pointRadius:0,fill:false},
+    {label:`MR_UNPL=${r1(lim.mrunpl)}`,data:Array(n).fill(lim.mrunpl),borderColor:'#DC2626',borderWidth:1.5,borderDash:[6,4],pointRadius:0,fill:false},
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#7A8099'}},y:{min:0,grid:{color:'#E0E4EE'},ticks:{font:{size:10},color:'#7A8099'}}}}});
+
+  // Table
+  document.getElementById('xmr-tbody').innerHTML=weeks.map((w,i)=>{
+    const xs=w.tp>lim.unpl||w.tp<lim.lnpl;
+    const ms=w.mR!==null&&w.mR>lim.mrunpl;
+    return`<tr><td style="color:var(--ink3)">${i+1}</td><td>${fmtS(w.weekStart)}</td><td>${fmtS(w.weekEnd)}</td>
+    <td class="${xs?'num-sig':'num'}">${w.tp}${xs?' ⚠':''}</td>
+    <td class="${ms?'num-sig':'num'}">${w.mR!==null?w.mR+(ms?' ⚠':''):'—'}</td>
+    <td><span class="tag ${xs?'badge-sig':'badge-ok'}">${xs?(w.tp>lim.unpl?'↑ UNPL':'↓ LNPL'):'OK'}</span></td>
+    <td>${w.mR!==null?`<span class="tag ${ms?'badge-sig':'badge-ok'}">${ms?'↑ MR_UNPL':'OK'}</span>`:'—'}</td></tr>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════════════════════
+   LEAD TIMES MODULE
+══════════════════════════════════════════════════════ */
+function ltStats(items){
+  const v=items.map(d=>d.days);
+  if(!v.length)return{p50:0,p85:0,p95:0,n:0};
+  return{p50:Math.round(pct(v,50)),p85:Math.round(pct(v,85)),p95:Math.round(pct(v,95)),n:v.length};
+}
+function ltZone(days,st){
+  if(days<=st.p50)return'ok';
+  if(days<=st.p85)return'warn';
+  if(days<=st.p95)return'risk';
+  return'out';
+}
+const ZC={ok:{bg:'#DCFCE7',bd:'#86EFAC',txt:'#166534',lbl:'≤P50'},warn:{bg:'#FEF3C7',bd:'#FCD34D',txt:'#92400E',lbl:'P50–P85'},risk:{bg:'#FEE2E2',bd:'#FCA5A5',txt:'#991B1B',lbl:'P85–P95'},out:{bg:'#F3F4F6',bd:'#D1D5DB',txt:'#4B5563',lbl:'>P95'}};
+
+function ltToggleSize(s){LT_ACTIVE[s]=!LT_ACTIVE[s];document.querySelector(`[data-size="${s}"]`).classList.toggle(`on-${s}`,LT_ACTIVE[s]);ltRender();}
+function ltToggleZone(z){ZONE_ACTIVE[z]=!ZONE_ACTIVE[z];document.querySelector(`[data-zone="${z}"]`).classList.toggle('dimmed',!ZONE_ACTIVE[z]);ltRender();}
+
+function ltRender(){
+  const vis=LT_DATA.filter(d=>LT_ACTIVE[d.size]);
+  const allSt=ltStats(vis);
+
+  // KPI cards
+  document.getElementById('lt-kpis').innerHTML=['S','M','L'].map(s=>{
+    const st=ltStats(LT_DATA.filter(d=>d.size===s));
+    const dim=!LT_ACTIVE[s];
+    return`<div class="kpi" style="opacity:${dim?.3:1}">
+      <div class="kpi-eyebrow" style="color:${SIZE_COLORS[s]}">${s} — ${s==='S'?'Small':s==='M'?'Medium':'Large'} (${st.n} zadań)</div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px">
+        <div><div style="font-size:9px;color:var(--ink3)">P50</div><div style="font-size:17px;font-weight:800;color:var(--p50c)">${st.p50||'—'}</div></div>
+        <div><div style="font-size:9px;color:var(--ink3)">P85</div><div style="font-size:17px;font-weight:800;color:var(--p85c)">${st.p85||'—'}</div></div>
+        <div><div style="font-size:9px;color:var(--ink3)">P95</div><div style="font-size:17px;font-weight:800;color:var(--p95c)">${st.p95||'—'}</div></div>
+      </div>
+      <div class="kpi-sub">dni realizacji</div></div>`;
+  }).join('');
+
+  // Scatter
+  const ns='http://www.w3.org/2000/svg';
+  const sorted=[...LT_DATA].sort((a,b)=>a.date.localeCompare(b.date));
+  const dates=sorted.map(d=>new Date(d.date));
+  const minD=new Date(Math.min(...dates)),maxD=new Date(Math.max(...dates));
+  const maxDays=Math.max(...LT_DATA.map(d=>d.days));
+  const yMax=Math.ceil(maxDays/50)*50+30;
+
+  // Use Chart.js scatter
+  const datasets=[];
+  ['S','M','L'].forEach(s=>{
+    const items=LT_DATA.filter(d=>d.size===s);
+    datasets.push({
+      label:s,
+      data:items.map(d=>({x:new Date(d.date).getTime(),y:d.days,days:d.days,date:d.date,zone:ltZone(d.days,allSt)})),
+      pointRadius:items.map(d=>{const z=ltZone(d.days,allSt);return(LT_ACTIVE[s]&&ZONE_ACTIVE[z])?6:3;}),
+      pointBackgroundColor:items.map(d=>{const z=ltZone(d.days,allSt);return LT_ACTIVE[s]&&ZONE_ACTIVE[z]?ZC[z].bg:'#E5E7EB';}),
+      pointBorderColor:items.map(d=>{const z=ltZone(d.days,allSt);return LT_ACTIVE[s]&&ZONE_ACTIVE[z]?SIZE_COLORS[s]:'#D1D5DB';}),
+      pointBorderWidth:1.8,showLine:false,
+    });
+  });
+  // P lines
+  ['p50','p85','p95'].forEach((k,i)=>{
+    const val=allSt[k];
+    const col=['#DC2626','#D97706','#16A34A'][i];
+    datasets.push({label:`${k.toUpperCase()}=${val}`,data:[{x:minD.getTime(),y:val},{x:maxD.getTime(),y:val}],
+      borderColor:col,borderWidth:1.5,borderDash:[5,4],pointRadius:0,showLine:true,fill:false});
+  });
+
+  destroyChart('lt-scatter');
+  charts['lt-scatter']=new Chart(document.getElementById('lt-scatter'),{type:'scatter',data:{datasets},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{
+      label:i=>i.datasetIndex<3?` ${LT_DATA.filter(d=>d.size===['S','M','L'][i.datasetIndex])[i.dataIndex]?.date} · ${i.raw.y} dni`:i.dataset.label
+    }}},scales:{
+      x:{type:'linear',ticks:{callback:v=>{const d=new Date(v);return`${d.getDate()} ${PLM[d.getMonth()]}`;},font:{size:10},color:'#7A8099',maxTicksLimit:8},grid:{color:'#E0E4EE'}},
+      y:{min:0,ticks:{font:{size:10},color:'#7A8099',stepSize:50},grid:{color:'#E0E4EE'},title:{display:true,text:'Dni',color:'#7A8099',font:{size:10}}}
+    }}});
+
+  // Table
+  document.getElementById('lt-tbl-count').textContent=`${vis.length} z ${LT_DATA.length} zadań`;
+  document.getElementById('lt-tbody').innerHTML=[...LT_DATA].sort((a,b)=>b.date.localeCompare(a.date)).map(d=>{
+    const z=ltZone(d.days,allSt);const sc=SIZE_COLORS[d.size];
+    return`<tr><td>${d.date}</td>
+    <td><span class="tag" style="background:${sc}22;color:${sc};border:1px solid ${sc}44">${d.size}</span></td>
+    <td class="num">${d.days}</td>
+    <td><span class="tag" style="background:${ZC[z].bg};color:${ZC[z].txt};border:1px solid ${ZC[z].bd}">${ZC[z].lbl}</span></td></tr>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════════════════════
+   MONTE CARLO MODULE
+══════════════════════════════════════════════════════ */
+function mcRenderEpics(){
+  const list=document.getElementById('mc-epic-list');
+  list.innerHTML='';
+  MC_EPICS.forEach((e,i)=>{
+    const row=document.createElement('div');
+    row.className='epic-row-cfg';row.draggable=true;row.dataset.idx=i;
+    row.innerHTML=`<span class="drag-handle">⠿</span>
+      <span class="epic-dot-sm" style="background:${EPIC_COLORS[i%EPIC_COLORS.length]}"></span>
+      <input style="flex:1;border:none;background:transparent;font-family:inherit;font-size:12px;font-weight:600;color:var(--ink);outline:none;min-width:0" value="${e.name}" onchange="MC_EPICS[${i}].name=this.value">
+      <span class="ef-mini">${e.min}</span><span style="font-size:10px;color:var(--ink3)">–</span>
+      <input class="ef-mini" type="number" value="${e.max}" min="1" onchange="MC_EPICS[${i}].max=+this.value">
+      <span class="known-tog ${e.known?'on':''}" onclick="MC_EPICS[${i}].known=!MC_EPICS[${i}].known;mcRenderEpics()">${e.known?'✓ Znany':'Nieznany'}</span>`;
+    row.querySelector('.ef-mini').onchange=ev=>MC_EPICS[i].min=+ev.target.value;
+    row.addEventListener('dragstart',()=>MC_DRAG_SRC=i);
+    row.addEventListener('dragover',ev=>{ev.preventDefault();row.classList.add('drag-over');});
+    row.addEventListener('dragleave',()=>row.classList.remove('drag-over'));
+    row.addEventListener('drop',ev=>{ev.preventDefault();row.classList.remove('drag-over');if(MC_DRAG_SRC===null||MC_DRAG_SRC===i)return;const m=MC_EPICS.splice(MC_DRAG_SRC,1)[0];MC_EPICS.splice(i,0,m);MC_DRAG_SRC=null;mcRenderEpics();});
+    list.appendChild(row);
+  });
+}
+
+function mcAddEpic(){MC_EPICS.push({name:`Epik ${MC_EPICS.length+1}`,min:3,max:6,known:false});mcRenderEpics();}
+
+function mcBuildMonthTable(){
+  const start=parseDate(document.getElementById('mc-start').value);
+  const dl=parseDate(document.getElementById('mc-dl').value);
+  const tbody=document.getElementById('mc-mtbl-body');tbody.innerHTML='';
+  let d=new Date(start.getFullYear(),start.getMonth(),1);
+  const end=new Date(dl.getFullYear(),dl.getMonth(),1);
+  while(d<=end){
+    const key=`${d.getFullYear()}-${d.getMonth()}`;
+    const cur=MC_MONTH_MODS[key]??100;
+    const lbl=`${PLM[d.getMonth()]} ${d.getFullYear()}`;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="mtbl-name">${lbl}</td><td><input class="mod-inp" type="number" value="${cur}" min="10" max="300" onchange="MC_MONTH_MODS['${key}']=+this.value">%</td>`;
+    tbody.appendChild(tr);d.setMonth(d.getMonth()+1);
+  }
+}
+
+function mcSimulate(epics){
+  const start=parseDate(document.getElementById('mc-start').value);
+  const dl=parseDate(document.getElementById('mc-dl').value);
+  const spLen=14;
+  const rawTp=document.getElementById('mc-tp').value.split(',').map(v=>parseFloat(v.trim())).filter(v=>!isNaN(v)&&v>=0);
+  const cap=parseFloat(document.getElementById('mc-cap').value)/100;
+  const wip=parseInt(document.getElementById('mc-wip').value);
+  const disc=parseFloat(document.getElementById('mc-disc').value)/100;
+
+  const bounds=epics.map(e=>({min:e.min,max:e.known?Math.max(e.min,Math.round(e.max*(1-disc))):e.max}));
+  const nE=epics.length;
+  const totP=new Int32Array(N_SIM);
+  const endP=epics.map(()=>new Float64Array(N_SIM));
+  const stP =epics.map(()=>new Float64Array(N_SIM));
+
+  function getMult(pi){
+    const d=addDays(start,pi*spLen);
+    const key=`${d.getFullYear()}-${d.getMonth()}`;
+    return cap*(MC_MONTH_MODS[key]??100)/100;
+  }
+
+  for(let s=0;s<N_SIM;s++){
+    const sz=bounds.map(b=>b.min+Math.floor(Math.random()*(b.max-b.min+1)));
+    const rem=Float64Array.from(sz);
+    const started=new Uint8Array(nE),finished=new Uint8Array(nE);
+    let per=0,done=0;
+    for(let i=0;i<Math.min(wip,nE);i++){started[i]=1;stP[i][s]=0;}
+    while(done<nE&&per<300){
+      const tp=rawTp[Math.floor(Math.random()*rawTp.length)]*getMult(per);
+      const active=[];for(let i=0;i<nE;i++)if(started[i]&&!finished[i])active.push(i);
+      if(!active.length)break;
+      const share=tp/active.length;
+      for(const i of active){
+        if(rem[i]<=share){
+          const f=per+rem[i]/Math.max(share,.0001);
+          endP[i][s]=f;rem[i]=0;finished[i]=1;done++;
+          for(let j=0;j<nE;j++){
+            if(!started[j]&&!finished[j]){
+              const activeNow=active.filter(k=>!finished[k]).length;
+              if(activeNow<wip){started[j]=1;stP[j][s]=f;}
+              break;
+            }
+          }
+        }else rem[i]-=share;
+      }
+      per++;
+    }
+    totP[s]=per;
+  }
+
+  const arr=Array.from(totP);
+  const toD=p=>addDays(start,Math.round(p)*spLen);
+  const dlMs=dl.getTime();
+  return{
+    p50d:toD(pct(arr,50)),p85d:toD(pct(arr,85)),p95d:toD(pct(arr,95)),
+    meetDl:arr.filter(p=>toD(p).getTime()<=dlMs).length/N_SIM,
+    endMed:epics.map((_,i)=>pct(Array.from(endP[i]),50)),
+    endP85:epics.map((_,i)=>pct(Array.from(endP[i]),85)),
+    endP95:epics.map((_,i)=>pct(Array.from(endP[i]),95)),
+    stMed: epics.map((_,i)=>pct(Array.from(stP[i]),50)),
+    stP85: epics.map((_,i)=>pct(Array.from(stP[i]),85)),
+    stP95: epics.map((_,i)=>pct(Array.from(stP[i]),95)),
+    raw:arr,start,dl,spLen,
+  };
+}
+
+function buildGantt(res,epics){
+  const{start,dl,spLen}=res;
+  const nE=epics.length;
+  const maxP=Math.max(...res.endP95)*1.08;
+  const dlP=(dl-start)/(spLen*86400000);
+  const LW=68,PT=28,PB=30,PR=22,RH=13,RG=3,EG=12;
+  const W=780,PW=W-LW-PR;
+  const EH=3*RH+2*RG;
+  const H=PT+nE*(EH+EG)-EG+PB;
+  const xP=p=>LW+(p/maxP)*PW;
+  const ry=i=>PT+i*(EH+EG);
+  const step=Math.max(1,Math.round(maxP/7));
+  const ticks=[];for(let p=0;p<=Math.ceil(maxP);p+=step)ticks.push(p);
+
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;font-family:Inter,system-ui" xmlns="http://www.w3.org/2000/svg">`;
+  ticks.forEach(p=>{
+    const x=xP(p),d=addDays(start,Math.round(p)*spLen);
+    s+=`<line x1="${x}" y1="${PT}" x2="${x}" y2="${H-PB}" stroke="#E0E4EE" stroke-width="1"/>`;
+    s+=`<text x="${x}" y="${PT-8}" text-anchor="middle" font-size="10" fill="#7A8099">${d.getDate()} ${PLM[d.getMonth()]}</text>`;
+  });
+  if(dlP<=maxP){
+    const dlX=xP(dlP);
+    s+=`<line x1="${dlX}" y1="${PT-4}" x2="${dlX}" y2="${H-PB+4}" stroke="#DC2626" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+    s+=`<text x="${dlX+4}" y="${PT-8}" font-size="10" font-weight="700" fill="#DC2626">Deadline</text>`;
+  }
+  const bands=[{stK:'stMed',eK:'endMed',c:'#DC2626',l:'P50'},{stK:'stP85',eK:'endP85',c:'#D97706',l:'P85'},{stK:'stP95',eK:'endP95',c:'#16A34A',l:'P95'}];
+  epics.forEach((e,i)=>{
+    const col=EPIC_COLORS[i%EPIC_COLORS.length];
+    const y=ry(i),my=y+EH/2;
+    s+=`<text x="${LW-6}" y="${my+4}" text-anchor="end" font-size="11" font-weight="600" fill="${col}">${e.name}</text>`;
+    s+=`<circle cx="${LW-58}" cy="${my}" r="4" fill="${col}"/>`;
+    bands.forEach((b,bi)=>{
+      const by=y+bi*(RH+RG);
+      const xs=xP(res[b.stK][i]),xe=xP(res[b.eK][i]);
+      const bw=Math.max(xe-xs,4);
+      s+=`<rect x="${xs}" y="${by}" width="${bw}" height="${RH}" rx="3" fill="${b.c}" opacity=".88"/>`;
+      if(bw>24)s+=`<text x="${xs+5}" y="${by+RH/2+4}" font-size="9" font-weight="700" fill="#fff">${b.l}</text>`;
+      const ed=fmtS(addDays(start,Math.round(res[b.eK][i])*spLen));
+      if(W-xe>60)s+=`<text x="${xe+5}" y="${by+RH/2+4}" font-size="9" font-weight="600" fill="${b.c}">${ed}</text>`;
+    });
+  });
+  const ly=H-PB+14;
+  [{c:'#DC2626',l:'P50 — 50% szans (ryzyko)'},{c:'#D97706',l:'P85 — 85% szans'},{c:'#16A34A',l:'P95 — 95% szans (bezpieczne)'}].forEach((l,li)=>{
+    const lx=LW+li*230;
+    s+=`<rect x="${lx}" y="${ly}" width="12" height="9" rx="3" fill="${l.c}" opacity=".88"/>`;
+    s+=`<text x="${lx+16}" y="${ly+8}" font-size="10" fill="#3A4058">${l.l}</text>`;
+  });
+  return s+'</svg>';
+}
+
+function mcRun(){
+  const btn=document.getElementById('mc-run-btn');
+  btn.disabled=true;btn.innerHTML='<span class="spin">⚙</span> Obliczam…';
+  mcBuildMonthTable();
+  setTimeout(()=>{
+    try{
+      const res=mcSimulate(MC_EPICS);
+      const dl=parseDate(document.getElementById('mc-dl').value);
+      const dlPct=Math.round(res.meetDl*100);
+      const r1=v=>fmtS(v);
+
+      setV('mc-p50-val',fmtM(res.p50d));
+      setV('mc-p85-val',fmtM(res.p85d));
+      setV('mc-p95-val',fmtM(res.p95d));
+      document.getElementById('mc-dl-sub').textContent=`Deadline: ${fmtS(dl)}`;
+
+      document.getElementById('mc-dl-body').innerHTML=`
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <div style="font-size:38px;font-weight:800;letter-spacing:-.04em;color:${dlPct>=85?'var(--green)':dlPct>=50?'var(--amber)':'var(--rose)'}">${dlPct}%</div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--ink)">${dlPct>=85?'✓ Deadline osiągalny':dlPct>=50?'⚠ Deadline z ryzykiem':'✗ Deadline zagrożony'}</div>
+            <div style="font-size:11px;color:var(--ink3);margin-top:3px">${Math.round((1-res.meetDl)*100)}% symulacji przekracza termin · WIP=${document.getElementById('mc-wip').value}</div>
+          </div>
+          <div style="flex:1;min-width:160px">
+            <div style="height:9px;border-radius:5px;background:var(--border);overflow:hidden">
+              <div style="height:100%;width:${dlPct}%;background:${dlPct>=85?'var(--green)':dlPct>=50?'var(--amber)':'var(--rose)'};border-radius:5px"></div>
+            </div>
+          </div>
+        </div>`;
+
+      document.getElementById('mc-gantt').innerHTML=buildGantt(res,MC_EPICS);
+
+      // Histogram
+      const arr=res.raw;
+      const minv=Math.min(...arr),maxv=Math.max(...arr);
+      const bins=Math.min(maxv-minv+1,36),bsz=Math.ceil((maxv-minv+1)/bins);
+      const p50p=pct(arr,50),p85p=pct(arr,85),p95p=pct(arr,95);
+      const hlabels=[],hcounts=[],hcolors=[];
+      for(let i=0;i<bins;i++){
+        const lo=minv+i*bsz,hi=lo+bsz-1;
+        hlabels.push(lo===hi?`${lo}`:`${lo}–${hi}`);
+        hcounts.push(arr.filter(v=>v>=lo&&v<=hi).length);
+        const mid=lo+bsz/2;
+        hcolors.push(mid<=p50p?'rgba(220,38,38,.7)':mid<=p85p?'rgba(217,119,6,.7)':mid<=p95p?'rgba(22,163,74,.7)':'rgba(100,116,139,.4)');
+      }
+      mkChart('mc-hist',{type:'bar',data:{labels:hlabels,datasets:[{data:hcounts,backgroundColor:hcolors,borderWidth:0,borderRadius:3}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:i=>` ${i.raw} symulacji (${(i.raw/N_SIM*100).toFixed(1)}%)`}}},
+        scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#7A8099',maxTicksLimit:10,maxRotation:0}},y:{grid:{color:'#E0E4EE'},ticks:{font:{size:10},color:'#7A8099'}}}}});
+
+      // Update overview KPIs
+      setV('ov-p85',fmtM(res.p85d));
+      setV('ov-dl-pct',dlPct+'%');
+      document.getElementById('ov-dl-pct').style.color=dlPct>=85?'var(--green)':dlPct>=50?'var(--amber)':'var(--rose)';
+      renderOvGanttMini(res);
+    }finally{btn.disabled=false;btn.innerHTML='🎲 Uruchom';}
+  },40);
+}
+
+/* ══════════════════════════════════════════════════════
+   DECISION MODULE
+══════════════════════════════════════════════════════ */
+function setCut(n){
+  DEC_CUT_N=n;
+  document.querySelectorAll('#cut-btns button').forEach(b=>{
+    const active=+b.dataset.cut===n;
+    b.className=active?'btn btn-primary':'btn btn-outline';
+    b.style.fontSize='11px';b.style.padding='4px 10px';
+  });
+}
+
+function decRun(){
+  const btn=document.getElementById('dec-run-btn');
+  btn.disabled=true;btn.innerHTML='<span class="spin">⚙</span>';
+  setTimeout(()=>{
+    try{
+      const full=mcSimulate(MC_EPICS);
+      const cut =mcSimulate(MC_EPICS.slice(0,MC_EPICS.length-DEC_CUT_N));
+      const cutNames=MC_EPICS.slice(MC_EPICS.length-DEC_CUT_N).map(e=>e.name).join(', ');
+      const fullOk=full.meetDl>=.85,cutOk=cut.meetDl>=.85;
+      const rec=fullOk?'full':cutOk?'cut':'neither';
+      const dlPctFull=Math.round(full.meetDl*100),dlPctCut=Math.round(cut.meetDl*100);
+
+      let vCls,vLbl,vTxt,vSub;
+      if(rec==='full'){vCls='green';vLbl='Pełny zakres mieści się w terminie';vTxt=`${MC_EPICS.length} Epików można dostarczyć z ${dlPctFull}% pewnością.`;vSub='Nie ma podstaw do cięcia zakresu.';}
+      else if(rec==='cut'){vCls='amber';vLbl='Cięcie zakresu przywraca bezpieczeństwo';vTxt=`Pełny zakres — ${dlPctFull}% szans. Po usunięciu ${cutNames} — ${dlPctCut}% szans.`;vSub=`P85 po cięciu: ${fmtS(cut.p85d)} — mieści się w terminie.`;}
+      else{vCls='rose';vLbl='Termin zagrożony w obu wariantach';vTxt=`Nawet po cięciu ${cutNames} termin jest trudny (${dlPctCut}%).`;vSub='Rozważ przesunięcie terminu lub dodatkowe zasoby.';}
+
+      document.getElementById('dec-verdict').innerHTML=`
+        <div class="verdict ${vCls}">
+          <div class="verdict-bar"></div>
+          <div><div class="verdict-label">${vLbl}</div><div class="verdict-text">${vTxt}</div><div class="verdict-sub">${vSub}</div></div>
+        </div>`;
+
+      const probCls=p=>p>=.85?'accent-green':p>=.5?'accent-amber':'accent-rose';
+      const probIcon=p=>p>=.85?'✓':p>=.5?'⚠':'✗';
+      document.getElementById('dec-cards').innerHTML=`
+        <div class="kpi ${rec==='full'?'accent-green':''}">
+          <div class="kpi-eyebrow">Scenariusz A · Pełny zakres</div>
+          <div class="kpi-val" style="font-size:18px">${dlPctFull}%</div>
+          <div class="kpi-sub">szans na termin</div>
+          <div style="margin-top:8px;font-size:12px">P50: ${fmtS(full.p50d)}<br>P85: ${fmtS(full.p85d)}<br>P95: ${fmtS(full.p95d)}</div>
+        </div>
+        <div class="kpi ${rec==='cut'?'accent-green':''}">
+          <div class="kpi-eyebrow">Scenariusz B · Po cięciu (bez ${cutNames})</div>
+          <div class="kpi-val" style="font-size:18px">${dlPctCut}%</div>
+          <div class="kpi-sub">szans na termin</div>
+          <div style="margin-top:8px;font-size:12px">P50: ${fmtS(cut.p50d)}<br>P85: ${fmtS(cut.p85d)}<br>P95: ${fmtS(cut.p95d)}</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-eyebrow">Redukcja ryzyka</div>
+          <div class="kpi-val" style="font-size:18px;color:var(--green)">−${Math.round((1-full.meetDl)*100)-Math.round((1-cut.meetDl)*100)}pp</div>
+          <div class="kpi-sub">opóźnienia po cięciu</div>
+          <div style="margin-top:8px;font-size:12px">Odkładamy: ${cutNames}<br>Hist.: ${MC_EPICS.slice(MC_EPICS.length-DEC_CUT_N).map(e=>`${e.min}–${e.max}`).join(', ')} hist.</div>
+        </div>`;
+
+      document.getElementById('dec-gantt-full').innerHTML=buildGantt(full,MC_EPICS);
+      document.getElementById('dec-gantt-b-title').textContent=`Scenariusz B — Po cięciu (${MC_EPICS.slice(0,MC_EPICS.length-DEC_CUT_N).map(e=>e.name).join(', ')})`;
+      document.getElementById('dec-gantt-cut').innerHTML=buildGantt(cut,MC_EPICS.slice(0,MC_EPICS.length-DEC_CUT_N));
+    }finally{btn.disabled=false;btn.innerHTML='⚖️ Przelicz';}
+  },40);
+}
+
+/* ══════════════════════════════════════════════════════
+   OVERVIEW MODULE
+══════════════════════════════════════════════════════ */
+function renderOvGanttMini(res){
+  if(!res)return;
+  document.getElementById('ov-gantt-mini').innerHTML=buildGantt(res,MC_EPICS);
+}
+
+function buildOvHealth(){
+  const weeks=xmrAggregate();
+  const lim=xmrLimits(weeks);
+  const sigs=weeks.filter(w=>w.tp>lim.unpl||w.tp<lim.lnpl).length;
+  const msigs=weeks.filter(w=>w.mR!==null&&w.mR>lim.mrunpl).length;
+  const stable=sigs===0&&msigs===0;
+  const ltAll=ltStats(LT_DATA);
+
+  document.getElementById('ov-health').innerHTML=`
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--r);background:${stable?'var(--green-bg)':'var(--amber-bg)'};border:1px solid ${stable?'var(--green-bd)':'var(--amber-bd)'}">
+        <span style="font-size:18px">${stable?'✅':'⚠️'}</span>
+        <div>
+          <div style="font-size:12px;font-weight:700;color:${stable?'var(--green)':'var(--amber)'}">${stable?'System stabilny':'Sygnały w systemie'}</div>
+          <div style="font-size:11px;color:var(--ink3)">${sigs+msigs} punkt${sigs+msigs===1?'':'y'} poza granicami XmR</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div style="background:var(--s2);border-radius:var(--r);padding:10px 12px">
+          <div style="font-size:10px;color:var(--ink3);margin-bottom:4px">Lead Time P85</div>
+          <div style="font-size:16px;font-weight:700;color:var(--p85c)">${ltAll.p85} dni</div>
+          <div style="font-size:10px;color:var(--ink3)">wszystkie rozmiary</div>
+        </div>
+        <div style="background:var(--s2);border-radius:var(--r);padding:10px 12px">
+          <div style="font-size:10px;color:var(--ink3);margin-bottom:4px">Throughput (CL)</div>
+          <div style="font-size:16px;font-weight:700;color:var(--teal)">${Math.round(lim.xcl)} / tydz.</div>
+          <div style="font-size:10px;color:var(--ink3)">mediana tygodniowa</div>
+        </div>
+        <div style="background:var(--s2);border-radius:var(--r);padding:10px 12px">
+          <div style="font-size:10px;color:var(--ink3);margin-bottom:4px">Lead Time S (P85)</div>
+          <div style="font-size:16px;font-weight:700;color:var(--p85c)">${ltStats(LT_DATA.filter(d=>d.size==='S')).p85} dni</div>
+        </div>
+        <div style="background:var(--s2);border-radius:var(--r);padding:10px 12px">
+          <div style="font-size:10px;color:var(--ink3);margin-bottom:4px">Łącznie zadań</div>
+          <div style="font-size:16px;font-weight:700;color:var(--ink)">${LT_DATA.length + DAILY_TP.reduce((s,[,v])=>s+v,0)}</div>
+          <div style="font-size:10px;color:var(--ink3)">LT + throughput</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderOvCharts(){
+  const weeks=xmrAggregate();
+  const lim=xmrLimits(weeks);
+  const labels=weeks.map(w=>fmtM(w.weekStart));
+  const xvals=weeks.map(w=>w.tp);
+  const n=weeks.length;
+  const isSig=w=>w.tp>lim.unpl||w.tp<lim.lnpl;
+  mkChart('ov-xmr-canvas',{type:'line',data:{labels,datasets:[
+    {data:xvals,borderColor:'#2563EB',borderWidth:2,fill:false,tension:.2,
+     pointRadius:weeks.map(w=>isSig(w)?7:4),
+     pointBackgroundColor:weeks.map(w=>isSig(w)?'#DC2626':'#2563EB'),
+     pointBorderColor:'#fff',pointBorderWidth:1.5},
+    {data:Array(n).fill(lim.xcl),borderColor:'#2563EB',borderWidth:1,borderDash:[5,4],pointRadius:0,fill:false},
+    {data:Array(n).fill(lim.unpl),borderColor:'#DC2626',borderWidth:1,borderDash:[5,4],pointRadius:0,fill:false},
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>`Tydzień ${i[0].label}`}}},scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#7A8099',maxTicksLimit:6}},y:{min:0,grid:{color:'#E0E4EE'},ticks:{font:{size:10},color:'#7A8099'}}}}});
+
+  const allSt=ltStats(LT_DATA);
+  const sorted=[...LT_DATA].sort((a,b)=>a.date.localeCompare(b.date));
+  const datasets=['S','M','L'].map(s=>{
+    const items=sorted.filter(d=>d.size===s);
+    return{label:s,data:items.map(d=>({x:new Date(d.date).getTime(),y:d.days})),
+      pointRadius:4,showLine:false,
+      pointBackgroundColor:items.map(d=>ZC[ltZone(d.days,allSt)].bg),
+      pointBorderColor:SIZE_COLORS[s],pointBorderWidth:1.5};
+  });
+  mkChart('ov-lt-canvas',{type:'scatter',data:{datasets},options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{x:{type:'linear',ticks:{callback:v=>{const d=new Date(v);return`${d.getDate()} ${PLM[d.getMonth()]}`;},font:{size:10},color:'#7A8099',maxTicksLimit:6},grid:{color:'#E0E4EE'}},
+    y:{min:0,grid:{color:'#E0E4EE'},ticks:{font:{size:10},color:'#7A8099'}}}}});
+}
+
+/* ══════════════════════════════════════════════════════
+   CSV IMPORT
+══════════════════════════════════════════════════════ */
+function ltHandleDrop(e){e.preventDefault();ltHandleFile(e.dataTransfer.files[0]);}
+function ltHandleFile(file){if(!file)return;const r=new FileReader();r.onload=e=>ltParseCSV(e.target.result);r.readAsText(file);}
+function ltParseCSV(text){
+  const lines=text.trim().split('\n').filter(l=>l.trim());
+  const h=lines[0].toLowerCase().replace(/\r/,'').split(/[,;]/);
+  const dI=h.findIndex(x=>x.includes('dat')),sI=h.findIndex(x=>x.includes('rozm')||x.includes('size')),dyI=h.findIndex(x=>x.includes('dni')||x.includes('day'));
+  if(dI<0||sI<0||dyI<0){document.getElementById('lt-import-msg').textContent='Brak kolumn: data/rozmiar/dni';return;}
+  let added=0;
+  for(let i=1;i<lines.length;i++){
+    const c=lines[i].replace(/\r/,'').split(/[,;]/);
+    const date=c[dI]?.trim(),size=c[sI]?.trim().toUpperCase(),days=parseInt(c[dyI]?.trim());
+    if(!date||!['S','M','L'].includes(size)||isNaN(days)||days<1)continue;
+    LT_DATA.push({date,size,days});added++;
+  }
+  LT_DATA.sort((a,b)=>a.date.localeCompare(b.date));
+  document.getElementById('lt-import-msg').textContent=`✓ Dodano ${added} zadań`;
+  ltRender();
+}
+
+function tpHandleDrop(e){e.preventDefault();tpHandleFile(e.dataTransfer.files[0]);}
+function tpHandleFile(file){if(!file)return;const r=new FileReader();r.onload=e=>tpParseCSV(e.target.result);r.readAsText(file);}
+function tpParseCSV(text){
+  const lines=text.trim().split('\n').filter(l=>l.trim());
+  const h=lines[0].toLowerCase().replace(/\r/,'').split(/[,;]/);
+  const dI=h.findIndex(x=>x.includes('dat')),vI=h.findIndex(x=>x.includes('przep')||x.includes('tp')||x.includes('val')||x.includes('count'));
+  if(dI<0||vI<0){document.getElementById('tp-import-msg').textContent='Brak kolumn: data/przepustowość';return;}
+  let added=0;
+  DAILY_TP=[];
+  for(let i=1;i<lines.length;i++){
+    const c=lines[i].replace(/\r/,'').split(/[,;]/);
+    const d=c[dI]?.trim(),v=parseInt(c[vI]?.trim());
+    if(!d||isNaN(v)||v<0)continue;
+    DAILY_TP.push([d,v]);added++;
+  }
+  document.getElementById('tp-import-msg').textContent=`✓ Wczytano ${added} wierszy`;
+  xmrRender();
+}
+
+/* ══════════════════════════════════════════════════════
+   RUN ALL
+══════════════════════════════════════════════════════ */
+function runAll(){
+  xmrRender();
+  ltRender();
+  renderOvCharts();
+  buildOvHealth();
+  mcRun();
+}
+
+/* ══ INIT ══ */
+mcRenderEpics();
+mcBuildMonthTable();
+window.addEventListener('DOMContentLoaded', ()=>setTimeout(()=>{
+  xmrRender();
+  ltRender();
+  renderOvCharts();
+  buildOvHealth();
+  mcRun();
+},60));
+</script>
+</body>
+</html>

@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prognoza Epików · Monte Carlo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg:      #F4F5F7;
+  --surface: #FFFFFF;
+  --s2:      #F8F9FB;
+  --border:  #E2E6EE;
+  --bd2:     #C9CFDC;
+  --ink:     #0F1117;
+  --ink2:    #3C4257;
+  --ink3:    #7C8299;
+
+  /* probability spectrum: red = low confidence, green = high confidence */
+  --p50c:  #DC2626;   /* czerwony — 50% to ryzyko */
+  --p85c:  #D97706;   /* amber */
+  --p95c:  #16A34A;   /* zielony — 95% to bezpieczeństwo */
+
+  --p50bg: #FEF2F2; --p50bd: #FECACA;
+  --p85bg: #FFFBEB; --p85bd: #FDE68A;
+  --p95bg: #F0FDF4; --p95bd: #86EFAC;
+
+  --r:  8px;
+  --r2: 12px;
+  --sh:    0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --sh-md: 0 4px 12px rgba(0,0,0,.07), 0 2px 6px rgba(0,0,0,.04);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.55;
+  min-height: 100vh;
+}
+
+/* ── layout ── */
+.shell { display: grid; grid-template-columns: 340px 1fr; min-height: 100vh; }
+
+/* ── sidebar ── */
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.sidebar-head {
+  padding: 20px 18px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.sidebar-head h1 { font-size: 15px; font-weight: 800; letter-spacing: -.025em; }
+.sidebar-head p  { font-size: 11px; color: var(--ink3); margin-top: 3px; }
+
+.sidebar-scroll { flex: 1; overflow-y: auto; padding: 14px 16px 24px; }
+
+/* ── sections ── */
+.sec { margin-bottom: 18px; }
+.sec-title {
+  font-size: 10px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ink3);
+  margin-bottom: 9px;
+  display: flex; align-items: center; gap: 6px;
+}
+.sec-title::after { content:''; flex:1; height:1px; background:var(--border); }
+
+/* ── fields ── */
+.field { margin-bottom: 10px; }
+.field label {
+  display: block; font-size: 11px; font-weight: 600;
+  color: var(--ink2); margin-bottom: 4px;
+}
+.field input[type=text],
+.field input[type=number],
+.field textarea,
+.field select {
+  width: 100%; padding: 6px 9px; border-radius: 6px;
+  border: 1.5px solid var(--border); background: var(--s2);
+  font-family: inherit; font-size: 12px; color: var(--ink);
+  outline: none; transition: border-color .15s;
+}
+.field input:focus, .field textarea:focus, .field select:focus {
+  border-color: #6366F1; background: #fff;
+}
+.field textarea { resize: none; height: 48px; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+.field-hint { font-size: 10px; color: var(--ink3); margin-top: 3px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* slider */
+.sl-row { display: flex; align-items: center; gap: 8px; }
+.sl-row input[type=range] { flex: 1; accent-color: #6366F1; cursor: pointer; }
+.sl-val { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 500; min-width: 38px; text-align: right; color: var(--ink); }
+
+/* ── epic rows ── */
+.epic-row {
+  background: var(--s2); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 9px 10px;
+  margin-bottom: 6px; cursor: grab;
+  transition: box-shadow .15s, border-color .15s;
+}
+.epic-row:active { cursor: grabbing; box-shadow: var(--sh-md); }
+.epic-row.drag-over { border-color: #6366F1; background: #EEF2FF; }
+.epic-row-head {
+  display: flex; align-items: center; gap: 7px; margin-bottom: 7px;
+}
+.drag-handle { color: var(--ink3); font-size: 13px; cursor: grab; flex-shrink: 0; }
+.epic-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.epic-name-input {
+  flex: 1; border: none; background: transparent;
+  font-family: inherit; font-size: 12px; font-weight: 600;
+  color: var(--ink); outline: none; min-width: 0;
+}
+.epic-name-input:focus { background: #fff; border-radius: 4px; padding: 0 4px; }
+.known-toggle {
+  font-size: 10px; font-weight: 700; padding: 2px 7px;
+  border-radius: 10px; border: 1.5px solid var(--border);
+  cursor: pointer; white-space: nowrap; background: var(--surface);
+  color: var(--ink3); transition: all .15s;
+}
+.known-toggle.on { background: #EEF2FF; border-color: #A5B4FC; color: #4338CA; }
+
+.epic-fields { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.ef-label { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--ink3); margin-bottom: 3px; }
+.ef-input {
+  width: 100%; padding: 4px 7px; border-radius: 5px;
+  border: 1.5px solid var(--border); background: var(--surface);
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  color: var(--ink); text-align: center; outline: none;
+}
+.ef-input:focus { border-color: #6366F1; }
+
+/* ── monthly modifiers ── */
+.month-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.month-table th {
+  text-align: center; padding: 4px 5px;
+  font-size: 9px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink3);
+  border-bottom: 1px solid var(--border); background: var(--s2);
+}
+.month-table td { padding: 4px 5px; border-bottom: 1px solid var(--border); text-align: center; }
+.month-table tr:last-child td { border-bottom: none; }
+.month-name { font-weight: 600; color: var(--ink2); text-align: left !important; font-size: 11px; }
+.mod-input {
+  width: 58px; padding: 3px 6px; border-radius: 5px;
+  border: 1.5px solid var(--border); background: var(--surface);
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  text-align: center; outline: none; color: var(--ink);
+}
+.mod-input:focus { border-color: #6366F1; }
+
+/* ── run button ── */
+.btn-run {
+  width: 100%; padding: 10px; border-radius: var(--r); border: none;
+  background: #111; color: #fff; font-family: inherit;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: opacity .15s; display: flex; align-items: center; justify-content: center; gap: 7px;
+  margin-top: 4px;
+}
+.btn-run:hover { opacity: .82; }
+.btn-run:disabled { opacity: .4; cursor: not-allowed; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { display: inline-block; animation: spin .6s linear infinite; }
+
+/* ── main panel ── */
+.main { overflow-y: auto; padding: 22px; display: flex; flex-direction: column; gap: 16px; }
+
+/* ── kpi strip ── */
+.kpi-strip { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+.kpi {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r2); padding: 14px 16px; box-shadow: var(--sh);
+}
+.kpi.p50 { background: var(--p50bg); border-color: var(--p50bd); }
+.kpi.p85 { background: var(--p85bg); border-color: var(--p85bd); }
+.kpi.p95 { background: var(--p95bg); border-color: var(--p95bd); }
+.kpi-eyebrow { font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 4px; }
+.kpi.p50 .kpi-eyebrow { color: var(--p50c); }
+.kpi.p85 .kpi-eyebrow { color: var(--p85c); }
+.kpi.p95 .kpi-eyebrow { color: var(--p95c); }
+.kpi-date { font-size: 18px; font-weight: 800; letter-spacing: -.03em; line-height: 1.2; color: var(--ink); }
+.kpi-sub  { font-size: 10px; color: var(--ink3); margin-top: 4px; }
+.kpi-prob { font-size: 12px; font-weight: 700; margin-top: 6px; }
+.kpi.p50 .kpi-prob { color: var(--p50c); }
+.kpi.p85 .kpi-prob { color: var(--p85c); }
+.kpi.p95 .kpi-prob { color: var(--p95c); }
+
+/* ── card ── */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r2); box-shadow: var(--sh); overflow: hidden;
+}
+.card-head {
+  padding: 13px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: baseline; gap: 8px;
+}
+.card-title { font-size: 13px; font-weight: 700; }
+.card-sub   { font-size: 11px; color: var(--ink3); }
+.card-body  { padding: 14px 16px; }
+
+/* ── histogram ── */
+.chart-wrap { position: relative; height: 200px; }
+
+/* ── gantt svg ── */
+.gantt-svg-wrap { overflow-x: auto; }
+
+/* ── empty / loading ── */
+.empty {
+  padding: 60px 20px; text-align: center;
+  color: var(--ink3); font-size: 13px; line-height: 1.8;
+}
+.empty-icon { font-size: 28px; display: block; margin-bottom: 10px; }
+
+/* ── assumptions ── */
+.asm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px,1fr)); gap: 8px; }
+.asm-item { display: flex; flex-direction: column; gap: 2px; }
+.asm-lbl { font-size: 10px; color: var(--ink3); }
+.asm-val { font-size: 12px; font-weight: 600; color: var(--ink); font-family: 'JetBrains Mono', monospace; }
+
+@media (max-width:800px) {
+  .shell { grid-template-columns: 1fr; }
+  .sidebar { position: static; height: auto; }
+  .kpi-strip { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- ════════════════════════════════
+     SIDEBAR
+════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-head">
+    <h1>Prognoza Epików · Monte Carlo</h1>
+    <p>10 000 symulacji · start 1 lip 2026 · deadline 31 paź 2026</p>
+  </div>
+
+  <div class="sidebar-scroll">
+
+    <!-- PODSTAWOWE -->
+    <div class="sec">
+      <div class="sec-title">Harmonogram</div>
+      <div class="row2">
+        <div class="field"><label>Start</label><input type="text" id="p-start" value="01/07/2026"></div>
+        <div class="field"><label>Deadline</label><input type="text" id="p-dl" value="31/10/2026"></div>
+      </div>
+      <div class="field">
+        <label>Historyczne tempo (historyjek/sprint)</label>
+        <textarea id="p-tp">3, 4, 5, 4, 2, 7, 4, 5</textarea>
+        <div class="field-hint">Liczby oddzielone przecinkami · 2-tygodniowe sprinty</div>
+      </div>
+      <div class="field">
+        <label>Pojemność na Epiki</label>
+        <div class="sl-row">
+          <input type="range" id="p-cap" min="10" max="100" value="75"
+            oninput="setVal('cap-v',this.value+'%')">
+          <span class="sl-val" id="cap-v">75%</span>
+        </div>
+        <div class="field-hint">% czasu zespołu dedykowany Epikom</div>
+      </div>
+    </div>
+
+    <!-- EPIKI -->
+    <div class="sec">
+      <div class="sec-title">Epiki — kolejność i estymacje</div>
+      <div style="font-size:10px;color:var(--ink3);margin-bottom:8px">Przeciągnij, by zmienić kolejność · kliknij „Znany", by oznaczyć znajomość domeny</div>
+      <div id="epic-list"></div>
+      <button onclick="addEpic()" style="font-size:11px;font-weight:600;color:#6366F1;background:none;border:1.5px dashed #A5B4FC;border-radius:6px;padding:5px 12px;cursor:pointer;width:100%;margin-top:4px">+ Dodaj Epik</button>
+    </div>
+
+    <!-- ZNIŻKA ZA ZNAJOMOŚĆ -->
+    <div class="sec">
+      <div class="sec-title">Premia za znajomość Epika</div>
+      <div class="field">
+        <label>Redukcja rozmiaru znanych Epików</label>
+        <div class="sl-row">
+          <input type="range" id="p-disc" min="0" max="50" value="15"
+            oninput="setVal('disc-v','-'+this.value+'%')">
+          <span class="sl-val" id="disc-v">-15%</span>
+        </div>
+        <div class="field-hint">Znane Epiki mają mniejszy efektywny rozmiar</div>
+      </div>
+    </div>
+
+    <!-- WIP LIMIT -->
+    <div class="sec">
+      <div class="sec-title">WIP — równoległa praca</div>
+      <div class="field">
+        <label>Maks. równoległych Epików (WIP limit)</label>
+        <div class="sl-row">
+          <input type="range" id="p-wip" min="1" max="6" value="1" step="1"
+            oninput="setVal('wip-v',this.value)">
+          <span class="sl-val" id="wip-v">1</span>
+        </div>
+        <div class="field-hint">1 = sekwencyjnie · 2+ = równoległa praca nad kilkoma Epikami</div>
+      </div>
+    </div>
+
+    <!-- MODYFIKATORY MIESIĘCZNE -->
+    <div class="sec">
+      <div class="sec-title">Modyfikatory miesięczne przepustowości</div>
+      <div style="font-size:10px;color:var(--ink3);margin-bottom:8px">100% = bez zmiany · np. 120% = wzrost o 20% · 60% = redukcja o 40%</div>
+      <table class="month-table" id="month-table">
+        <thead>
+          <tr><th style="text-align:left">Miesiąc</th><th>Modyfikator (%)</th></tr>
+        </thead>
+        <tbody id="month-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- RUN -->
+    <button class="btn-run" id="run-btn" onclick="run()">🎲 Uruchom symulację</button>
+
+  </div>
+</aside>
+
+<!-- ════════════════════════════════
+     MAIN
+════════════════════════════════ -->
+<main class="main" id="main-area">
+  <div class="empty">
+    <span class="empty-icon">📊</span>
+    Skonfiguruj parametry i kliknij <strong>Uruchom symulację</strong>
+  </div>
+</main>
+
+</div><!-- /shell -->
+
+<script>
+/* ════════════════════════════════════════════
+   STATE
+════════════════════════════════════════════ */
+const N = 10000;
+const COLORS = ['#0D9488','#4338CA','#C2770A','#BE123C','#6D28D9','#059669','#0EA5E9','#9333EA'];
+const PLM = ['sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paź','lis','gru'];
+
+let EPICS = [
+  { name:'Epik 1', min:4, max:6, wip:1, known:true  },
+  { name:'Epik 2', min:3, max:5, wip:1, known:true  },
+  { name:'Epik 3', min:3, max:4, wip:1, known:false },
+  { name:'Epik 4', min:3, max:5, wip:1, known:false },
+  { name:'Epik 5', min:4, max:7, wip:1, known:false },
+  { name:'Epik 6', min:4, max:8, wip:1, known:false },
+];
+
+// Monthly modifiers: key = "YYYY-M" (0-indexed month), value = multiplier (1.0 = normal)
+let MONTH_MODS = {};
+
+let dragSrcIdx = null;
+let chartInst = null;
+
+/* ════════════════════════════════════════════
+   HELPERS
+════════════════════════════════════════════ */
+function setVal(id, v) { document.getElementById(id).textContent = v; }
+function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
+function parseDate(s) { const [d,m,y] = s.trim().split('/'); return new Date(+y, +m-1, +d); }
+function fmtShort(d) { return d.toLocaleDateString('pl-PL',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+function fmtMed(d)   { return d.toLocaleDateString('pl-PL',{day:'numeric',month:'long',year:'numeric'}); }
+function pctile(arr, p) {
+  const s = [...arr].sort((a,b) => a-b);
+  const pos = (s.length-1)*p/100, lo = Math.floor(pos), hi = Math.ceil(pos);
+  return s[lo] + (s[hi]-s[lo])*(pos-lo);
+}
+function monthKey(d) { return `${d.getFullYear()}-${d.getMonth()}`; }
+function getMod(d) { return (MONTH_MODS[monthKey(d)] ?? 100) / 100; }
+
+/* ════════════════════════════════════════════
+   EPICS TABLE RENDER
+════════════════════════════════════════════ */
+function renderEpics() {
+  const list = document.getElementById('epic-list');
+  list.innerHTML = '';
+  EPICS.forEach((e, i) => {
+    const row = document.createElement('div');
+    row.className = 'epic-row';
+    row.draggable = true;
+    row.dataset.idx = i;
+    row.innerHTML = `
+      <div class="epic-row-head">
+        <span class="drag-handle" title="Przeciągnij">⠿</span>
+        <span class="epic-dot" style="background:${COLORS[i%COLORS.length]}"></span>
+        <input class="epic-name-input" value="${e.name}"
+          onchange="EPICS[${i}].name=this.value">
+        <span class="known-toggle ${e.known?'on':''}"
+          onclick="EPICS[${i}].known=!EPICS[${i}].known;renderEpics()">
+          ${e.known?'✓ Znany':'Nieznany'}
+        </span>
+      </div>
+      <div class="epic-fields">
+        <div>
+          <div class="ef-label">Min hist.</div>
+          <input class="ef-input" type="number" value="${e.min}" min="1"
+            onchange="EPICS[${i}].min=+this.value">
+        </div>
+        <div>
+          <div class="ef-label">Max hist.</div>
+          <input class="ef-input" type="number" value="${e.max}" min="1"
+            onchange="EPICS[${i}].max=+this.value">
+        </div>
+        <div>
+          <div class="ef-label">WIP slot</div>
+          <input class="ef-input" type="number" value="${e.wip||1}" min="1" max="6"
+            title="Który slot WIP zajmuje ten Epik (1..WIP limit)"
+            onchange="EPICS[${i}].wip=+this.value">
+        </div>
+      </div>`;
+
+    // Drag-and-drop
+    row.addEventListener('dragstart', e => { dragSrcIdx = i; e.dataTransfer.effectAllowed = 'move'; });
+    row.addEventListener('dragover',  e => { e.preventDefault(); row.classList.add('drag-over'); });
+    row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+    row.addEventListener('drop', e => {
+      e.preventDefault();
+      row.classList.remove('drag-over');
+      if (dragSrcIdx === null || dragSrcIdx === i) return;
+      const moved = EPICS.splice(dragSrcIdx, 1)[0];
+      EPICS.splice(i, 0, moved);
+      dragSrcIdx = null;
+      renderEpics();
+    });
+    list.appendChild(row);
+  });
+}
+
+function addEpic() {
+  EPICS.push({ name:`Epik ${EPICS.length+1}`, min:3, max:6, wip:1, known:false });
+  renderEpics();
+}
+
+/* ════════════════════════════════════════════
+   MONTHLY MODIFIERS TABLE
+════════════════════════════════════════════ */
+function buildMonthTable() {
+  const start    = parseDate(document.getElementById('p-start').value);
+  const deadline = parseDate(document.getElementById('p-dl').value);
+  const tbody    = document.getElementById('month-tbody');
+  tbody.innerHTML = '';
+
+  let d = new Date(start.getFullYear(), start.getMonth(), 1);
+  const end = new Date(deadline.getFullYear(), deadline.getMonth(), 1);
+
+  while (d <= end) {
+    const key = monthKey(d);
+    const cur = MONTH_MODS[key] ?? 100;
+    const label = `${PLM[d.getMonth()]} ${d.getFullYear()}`;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="month-name">${label}</td>
+      <td><input class="mod-input" type="number" value="${cur}" min="10" max="300"
+        onchange="MONTH_MODS['${key}']=+this.value"
+        title="100% = bez zmiany">%</td>`;
+    tbody.appendChild(tr);
+    d.setMonth(d.getMonth() + 1);
+  }
+}
+
+/* ════════════════════════════════════════════
+   SIMULATION ENGINE
+
+   WIP model:
+   - Each sprint period, total capacity is split across WIP active epics
+   - Epics become active when previous ones complete (up to WIP limit)
+   - Within a period, throughput is divided among currently active epics
+════════════════════════════════════════════ */
+function simulate() {
+  const start    = parseDate(document.getElementById('p-start').value);
+  const deadline = parseDate(document.getElementById('p-dl').value);
+  const spLen    = 14;
+  const rawTp    = document.getElementById('p-tp').value
+    .split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v) && v >= 0);
+  const capPct   = parseFloat(document.getElementById('p-cap').value) / 100;
+  const disc     = parseFloat(document.getElementById('p-disc').value) / 100;
+  const wipLimit = parseInt(document.getElementById('p-wip').value);
+
+  if (!rawTp.length) return null;
+
+  // Apply known-discount to maxima
+  const bounds = EPICS.map(e => ({
+    min: e.min,
+    max: e.known ? Math.max(e.min, Math.round(e.max * (1 - disc))) : e.max,
+  }));
+
+  const nE = EPICS.length;
+  const totP   = new Int32Array(N);       // total periods for full completion
+  const endP   = EPICS.map(() => new Float64Array(N)); // completion period per epic
+  const startP = EPICS.map(() => new Float64Array(N)); // start period per epic
+
+  for (let s = 0; s < N; s++) {
+    // Draw random sizes for each epic
+    const sz = bounds.map(b => b.min + Math.floor(Math.random() * (b.max - b.min + 1)));
+    const remaining = Float64Array.from(sz); // remaining stories per epic
+    const started   = new Uint8Array(nE);    // has epic been started?
+    const finished  = new Uint8Array(nE);    // has epic been finished?
+
+    let period = 0;
+    let doneCount = 0;
+
+    // Mark first wipLimit epics as started at period 0
+    for (let i = 0; i < Math.min(wipLimit, nE); i++) {
+      started[i] = 1;
+      startP[i][s] = 0;
+    }
+
+    while (doneCount < nE && period < 300) {
+      // Effective throughput this period
+      const d = addDays(start, period * spLen);
+      const modMult = getMod(d);
+      const tp = rawTp[Math.floor(Math.random() * rawTp.length)] * capPct * modMult;
+
+      // Active epics this period
+      const active = [];
+      for (let i = 0; i < nE; i++) {
+        if (started[i] && !finished[i]) active.push(i);
+      }
+
+      if (active.length === 0) break;
+
+      // Split throughput equally among active epics
+      const share = tp / active.length;
+
+      for (const i of active) {
+        if (remaining[i] <= share) {
+          // Epic finishes this period (fractional)
+          const frac = period + remaining[i] / Math.max(share, 0.0001);
+          endP[i][s] = frac;
+          remaining[i] = 0;
+          finished[i] = 1;
+          doneCount++;
+
+          // Start next unstarted epic if WIP allows
+          const activeNow = active.filter(j => !finished[j]).length;
+          for (let j = 0; j < nE; j++) {
+            if (!started[j] && !finished[j]) {
+              const wouldBeActive = active.filter(k => !finished[k]).length;
+              if (wouldBeActive < wipLimit) {
+                started[j] = 1;
+                startP[j][s] = frac;
+              }
+              break;
+            }
+          }
+        } else {
+          remaining[i] -= share;
+        }
+      }
+      period++;
+    }
+    totP[s] = period;
+  }
+
+  // Aggregate
+  const arr = Array.from(totP);
+  const toDate = p => addDays(start, Math.round(p) * spLen);
+  const dlMs = deadline.getTime();
+
+  return {
+    p50d: toDate(pctile(arr, 50)),
+    p85d: toDate(pctile(arr, 85)),
+    p95d: toDate(pctile(arr, 95)),
+    meetDl: arr.filter(p => toDate(p).getTime() <= dlMs).length / N,
+    endMed:  EPICS.map((_, i) => pctile(Array.from(endP[i]), 50)),
+    endP85:  EPICS.map((_, i) => pctile(Array.from(endP[i]), 85)),
+    endP95:  EPICS.map((_, i) => pctile(Array.from(endP[i]), 95)),
+    stMed:   EPICS.map((_, i) => pctile(Array.from(startP[i]), 50)),
+    stP85:   EPICS.map((_, i) => pctile(Array.from(startP[i]), 85)),
+    stP95:   EPICS.map((_, i) => pctile(Array.from(startP[i]), 95)),
+    raw: arr,
+    start, deadline, spLen,
+  };
+}
+
+/* ════════════════════════════════════════════
+   GANTT SVG
+   Three rows per epic: P50 (red), P85 (amber), P95 (green)
+════════════════════════════════════════════ */
+function buildGantt(res) {
+  const { start, deadline, spLen } = res;
+  const nE = EPICS.length;
+
+  // X range: 0 to max(endP95) + buffer
+  const maxPeriod = Math.max(...res.endP95) * 1.08;
+  const dlPeriod  = (deadline - start) / (spLen * 86400000);
+
+  const LABEL_W = 68;
+  const PAD_T   = 28;
+  const PAD_B   = 30;
+  const PAD_R   = 22;
+  const ROW_H   = 14;   // height of each probability bar
+  const ROW_GAP = 4;    // gap between P50/P85/P95 rows
+  const EP_GAP  = 14;   // gap between epics
+  const EP_H    = 3*ROW_H + 2*ROW_GAP; // total epic block height
+  const W       = 860;
+  const PW      = W - LABEL_W - PAD_R;
+  const H       = PAD_T + nE*(EP_H + EP_GAP) - EP_GAP + PAD_B;
+
+  const xP  = p  => LABEL_W + (p / maxPeriod) * PW;
+  const epY = i  => PAD_T + i * (EP_H + EP_GAP);
+
+  // Tick marks
+  const step = Math.max(1, Math.round(maxPeriod / 7));
+  const ticks = [];
+  for (let p = 0; p <= Math.ceil(maxPeriod); p += step) ticks.push(p);
+
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;font-family:Inter,system-ui" xmlns="http://www.w3.org/2000/svg">`;
+
+  // Background grid
+  ticks.forEach(p => {
+    const x = xP(p);
+    const d = addDays(start, Math.round(p) * spLen);
+    s += `<line x1="${x}" y1="${PAD_T}" x2="${x}" y2="${H-PAD_B}" stroke="#E2E6EE" stroke-width="1"/>`;
+    s += `<text x="${x}" y="${PAD_T-8}" text-anchor="middle" font-size="10" fill="#7C8299">${d.getDate()} ${PLM[d.getMonth()]}</text>`;
+  });
+
+  // Deadline
+  if (dlPeriod <= maxPeriod) {
+    const dlX = xP(dlPeriod);
+    s += `<line x1="${dlX}" y1="${PAD_T-4}" x2="${dlX}" y2="${H-PAD_B+4}" stroke="#DC2626" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+    s += `<text x="${dlX+4}" y="${PAD_T-8}" font-size="10" font-weight="700" fill="#DC2626">Deadline</text>`;
+  }
+
+  // Epic rows — 3 probability bands
+  const bands = [
+    { key:'P50', stKey:'stMed', endKey:'endMed', color:'#DC2626', label:'P50' },
+    { key:'P85', stKey:'stP85', endKey:'endP85', color:'#D97706', label:'P85' },
+    { key:'P95', stKey:'stP95', endKey:'endP95', color:'#16A34A', label:'P95' },
+  ];
+
+  EPICS.forEach((e, i) => {
+    const col   = COLORS[i % COLORS.length];
+    const baseY = epY(i);
+    const midY  = baseY + EP_H/2;
+
+    // Epic name label
+    s += `<text x="${LABEL_W-6}" y="${midY+4}" text-anchor="end" font-size="11" font-weight="600" fill="${col}">${e.name}</text>`;
+    // Dot
+    s += `<circle cx="${LABEL_W-58}" cy="${midY}" r="4" fill="${col}"/>`;
+
+    bands.forEach((b, bi) => {
+      const y   = baseY + bi*(ROW_H + ROW_GAP);
+      const xs  = xP(res[b.stKey][i]);
+      const xe  = xP(res[b.endKey][i]);
+      const bw  = Math.max(xe - xs, 4);
+      const midBarY = y + ROW_H/2;
+
+      // Bar
+      s += `<rect x="${xs}" y="${y}" width="${bw}" height="${ROW_H}" rx="3" fill="${b.color}" opacity=".85"/>`;
+
+      // Probability label inside bar if wide enough
+      if (bw > 28) {
+        s += `<text x="${xs+5}" y="${midBarY+4}" font-size="9" font-weight="700" fill="#fff">${b.label}</text>`;
+      }
+
+      // End date label after bar
+      const ed   = fmtShort(addDays(start, Math.round(res[b.endKey][i]) * spLen));
+      const lx   = xe + 5;
+      const fits = (W - lx) > 58;
+      if (fits) {
+        s += `<text x="${lx}" y="${midBarY+4}" font-size="10" font-weight="600" fill="${b.color}">${ed}</text>`;
+      }
+    });
+  });
+
+  // Legend
+  const ly = H - PAD_B + 14;
+  [
+    { color:'#DC2626', label:'P50 — 50% szans (data ryzyka)' },
+    { color:'#D97706', label:'P85 — 85% szans' },
+    { color:'#16A34A', label:'P95 — 95% szans (data bezpieczna)' },
+  ].forEach((l, li) => {
+    const lx = LABEL_W + li * 240;
+    s += `<rect x="${lx}" y="${ly}" width="12" height="9" rx="3" fill="${l.color}" opacity=".85"/>`;
+    s += `<text x="${lx+16}" y="${ly+8}" font-size="10" fill="#3C4257">${l.label}</text>`;
+  });
+
+  s += '</svg>';
+  return s;
+}
+
+/* ════════════════════════════════════════════
+   HISTOGRAM
+════════════════════════════════════════════ */
+function buildHistogram(arr) {
+  const min   = Math.min(...arr);
+  const max   = Math.max(...arr);
+  const bins  = Math.min(max - min + 1, 40);
+  const bsz   = Math.ceil((max - min + 1) / bins);
+  const p50   = pctile(arr, 50);
+  const p85   = pctile(arr, 85);
+  const p95   = pctile(arr, 95);
+
+  const labels = [], counts = [], colors = [];
+  for (let i = 0; i < bins; i++) {
+    const lo = min + i*bsz, hi = lo + bsz - 1;
+    labels.push(lo === hi ? `${lo}` : `${lo}–${hi}`);
+    counts.push(arr.filter(v => v >= lo && v <= hi).length);
+    const mid = lo + bsz/2;
+    // color: red=low confidence, amber=medium, green=high confidence
+    if (mid <= p50)      colors.push('rgba(220,38,38,.70)');
+    else if (mid <= p85) colors.push('rgba(217,119,6,.70)');
+    else if (mid <= p95) colors.push('rgba(22,163,74,.70)');
+    else                 colors.push('rgba(100,116,139,.40)');
+  }
+
+  if (chartInst) chartInst.destroy();
+  chartInst = new Chart(document.getElementById('hist-canvas'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: 'Symulacje', data: counts, backgroundColor: colors, borderWidth: 0, borderRadius: 3 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: i => ` ${i.raw} symulacji (${(i.raw/N*100).toFixed(1)}%)` } }
+      },
+      scales: {
+        x: { grid:{display:false}, ticks:{font:{size:10},color:'#7C8299',maxTicksLimit:10,maxRotation:0},
+             title:{display:true,text:'Okresy (sprinty) do ukończenia wszystkich Epików',color:'#7C8299',font:{size:10}} },
+        y: { grid:{color:'#E2E6EE'}, ticks:{font:{size:10},color:'#7C8299'},
+             title:{display:true,text:'Liczba symulacji',color:'#7C8299',font:{size:10}} }
+      }
+    }
+  });
+}
+
+/* ════════════════════════════════════════════
+   RENDER MAIN PANEL
+════════════════════════════════════════════ */
+function renderMain(res) {
+  const main = document.getElementById('main-area');
+  const dlPct = Math.round(res.meetDl * 100);
+  const capPct = document.getElementById('p-cap').value;
+  const wipLimit = document.getElementById('p-wip').value;
+  const disc = document.getElementById('p-disc').value;
+  const tp = document.getElementById('p-tp').value.trim();
+  const knownNames = EPICS.filter(e=>e.known).map(e=>e.name).join(', ') || '—';
+
+  main.innerHTML = `
+    <!-- KPI -->
+    <div class="kpi-strip">
+      <div class="kpi p50">
+        <div class="kpi-eyebrow">P50 — 50% prawdopodobieństwo</div>
+        <div class="kpi-date">${fmtShort(res.p50d)}</div>
+        <div class="kpi-sub">${fmtMed(res.p50d)}</div>
+        <div class="kpi-prob">⚠ Data ryzyka — połowa symulacji nie zdąży</div>
+      </div>
+      <div class="kpi p85">
+        <div class="kpi-eyebrow">P85 — 85% prawdopodobieństwo</div>
+        <div class="kpi-date">${fmtShort(res.p85d)}</div>
+        <div class="kpi-sub">${fmtMed(res.p85d)}</div>
+        <div class="kpi-prob">~ Data planistyczna</div>
+      </div>
+      <div class="kpi p95">
+        <div class="kpi-eyebrow">P95 — 95% prawdopodobieństwo</div>
+        <div class="kpi-date">${fmtShort(res.p95d)}</div>
+        <div class="kpi-sub">${fmtMed(res.p95d)}</div>
+        <div class="kpi-prob">✓ Data bezpieczna — zobowiązania zewnętrzne</div>
+      </div>
+    </div>
+
+    <!-- DEADLINE -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Szansa na deadline ${fmtShort(res.deadline)}</div>
+        <div class="card-sub">WIP limit: ${wipLimit} · pojemność: ${capPct}%</div>
+      </div>
+      <div class="card-body">
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <div style="font-size:40px;font-weight:800;letter-spacing:-.04em;color:${dlPct>=85?'#16A34A':dlPct>=50?'#D97706':'#DC2626'}">${dlPct}%</div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:3px">
+              ${dlPct>=85?'✓ Deadline osiągalny z dużą pewnością':dlPct>=50?'⚠ Deadline możliwy, ale z ryzykiem':'✗ Deadline zagrożony'}
+            </div>
+            <div style="font-size:12px;color:var(--ink3);line-height:1.7">
+              ${Math.round((1-res.meetDl)*100)}% symulacji przekracza termin.<br>
+              P85 = ${fmtShort(res.p85d)} &nbsp;·&nbsp; P95 = ${fmtShort(res.p95d)}
+            </div>
+          </div>
+          <!-- deadline probability bar -->
+          <div style="flex:1;min-width:180px">
+            <div style="height:10px;border-radius:5px;background:var(--border);overflow:hidden">
+              <div style="height:100%;width:${dlPct}%;background:${dlPct>=85?'#16A34A':dlPct>=50?'#D97706':'#DC2626'};border-radius:5px;transition:width .4s"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--ink3);margin-top:3px">
+              <span>0%</span><span>Szansa na termin</span><span>100%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- GANTT -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Wykres Gantta — P50 / P85 / P95</div>
+        <div class="card-sub">Trzy paski per Epik · czerwony=50% szans · zielony=95% szans · WIP=${wipLimit}</div>
+      </div>
+      <div class="card-body">
+        <div class="gantt-svg-wrap" id="gantt-wrap"></div>
+      </div>
+    </div>
+
+    <!-- HISTOGRAM -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Rozkład symulacji</div>
+        <div class="card-sub">Liczba sprintów do ukończenia wszystkich Epików · 10 000 symulacji</div>
+      </div>
+      <div class="card-body">
+        <div class="chart-wrap"><canvas id="hist-canvas"></canvas></div>
+        <div style="display:flex;gap:14px;margin-top:10px;font-size:11px;flex-wrap:wrap">
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:3px;background:#DC2626;display:inline-block"></span>≤ P50 (ryzyko)</span>
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:3px;background:#D97706;display:inline-block"></span>P50–P85</span>
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:3px;background:#16A34A;display:inline-block"></span>P85–P95 (bezpieczne)</span>
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:3px;background:#64748B;opacity:.5;display:inline-block"></span>> P95</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ASSUMPTIONS -->
+    <div class="card">
+      <div class="card-head"><div class="card-title">Założenia symulacji</div></div>
+      <div class="card-body">
+        <div class="asm-grid">
+          <div class="asm-item"><div class="asm-lbl">Tempo historyczne</div><div class="asm-val">${tp}</div></div>
+          <div class="asm-item"><div class="asm-lbl">Pojemność na Epiki</div><div class="asm-val">${capPct}%</div></div>
+          <div class="asm-item"><div class="asm-lbl">WIP limit</div><div class="asm-val">${wipLimit}</div></div>
+          <div class="asm-item"><div class="asm-lbl">Znane Epiki</div><div class="asm-val" style="font-size:11px">${knownNames}</div></div>
+          <div class="asm-item"><div class="asm-lbl">Redukcja znanych</div><div class="asm-val">-${disc}%</div></div>
+          <div class="asm-item"><div class="asm-lbl">Symulacji</div><div class="asm-val">10 000</div></div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Gantt
+  document.getElementById('gantt-wrap').innerHTML = buildGantt(res);
+  // Histogram
+  buildHistogram(res.raw);
+}
+
+/* ════════════════════════════════════════════
+   RUN
+════════════════════════════════════════════ */
+function run() {
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin">⚙</span> Obliczam…';
+  buildMonthTable();
+  setTimeout(() => {
+    try {
+      const res = simulate();
+      if (!res) { alert('Podaj historyczne tempo!'); return; }
+      renderMain(res);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '🎲 Uruchom symulację';
+    }
+  }, 40);
+}
+
+/* ════════════════════════════════════════════
+   INIT
+════════════════════════════════════════════ */
+renderEpics();
+buildMonthTable();
+window.addEventListener('DOMContentLoaded', () => setTimeout(run, 60));
+</script>
+</body>
+</html>

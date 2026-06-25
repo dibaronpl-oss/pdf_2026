@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monte Carlo · Prognoza dostarczania</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  --ink:    #1C1F26;
+  --ink-2:  #4A4F5C;
+  --ink-3:  #8B909C;
+  --paper:  #F7F8FA;
+  --white:  #FFFFFF;
+  --border: #E2E5EB;
+  --border-2:#C8CDD8;
+
+  --teal:   #0D9488;
+  --teal-2: #CCFBF1;
+  --amber:  #B45309;
+  --amber-2:#FEF3C7;
+  --rose:   #BE123C;
+  --rose-2: #FFE4E6;
+  --slate:  #334155;
+  --slate-2:#F1F5F9;
+
+  --p50: #0D9488;
+  --p85: #D97706;
+  --p95: #BE123C;
+
+  --r: 8px;
+  --sh: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --sh-lg: 0 8px 24px rgba(0,0,0,.07), 0 2px 8px rgba(0,0,0,.04);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* ── Page shell ── */
+.page { max-width: 1060px; margin: 0 auto; padding: 36px 20px 72px; }
+
+/* ── Masthead ── */
+.masthead {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; margin-bottom: 32px;
+  padding-bottom: 24px; border-bottom: 1.5px solid var(--border);
+}
+.masthead-left h1 {
+  font-size: 26px; font-weight: 700; letter-spacing: -.03em;
+  color: var(--ink); line-height: 1.2;
+}
+.masthead-left p { font-size: 13px; color: var(--ink-3); margin-top: 5px; }
+.masthead-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--teal-2); color: var(--teal);
+  border: 1px solid #99F6E4; border-radius: 20px;
+  padding: 4px 12px; font-size: 12px; font-weight: 600;
+  white-space: nowrap; margin-top: 8px;
+}
+.sim-count { font-family: 'DM Mono', monospace; }
+
+/* ── Scenarios strip ── */
+.scenarios {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  margin-bottom: 28px;
+}
+.scenario-btn {
+  border: 1.5px solid var(--border); border-radius: var(--r);
+  background: var(--white); padding: 12px 14px;
+  cursor: pointer; text-align: left; transition: all .15s;
+  position: relative;
+}
+.scenario-btn:hover { border-color: var(--teal); }
+.scenario-btn.active {
+  border-color: var(--teal); background: var(--teal-2);
+  box-shadow: 0 0 0 3px rgba(13,148,136,.12);
+}
+.sc-num {
+  font-size: 10px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--ink-3); margin-bottom: 4px;
+}
+.scenario-btn.active .sc-num { color: var(--teal); }
+.sc-label { font-size: 13px; font-weight: 600; color: var(--ink); }
+.sc-desc { font-size: 11px; color: var(--ink-3); margin-top: 3px; line-height: 1.4; }
+
+/* ── Two-column layout ── */
+.layout { display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }
+
+/* ── Panel base ── */
+.panel {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  box-shadow: var(--sh);
+}
+.panel-head {
+  padding: 14px 16px 0;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.panel-title { font-size: 13px; font-weight: 600; color: var(--ink); }
+.panel-sub { font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+.panel-body { padding: 14px 16px 16px; }
+.panel + .panel { margin-top: 12px; }
+
+/* ── Inputs ── */
+.field { margin-bottom: 14px; }
+.field:last-child { margin-bottom: 0; }
+.field label {
+  display: block; font-size: 11px; font-weight: 600;
+  letter-spacing: .04em; text-transform: uppercase;
+  color: var(--ink-3); margin-bottom: 5px;
+}
+.field input[type=text],
+.field input[type=number],
+.field textarea {
+  width: 100%; padding: 8px 10px; border-radius: 6px;
+  border: 1.5px solid var(--border); background: var(--paper);
+  font-family: inherit; font-size: 13px; color: var(--ink);
+  outline: none; transition: border-color .15s;
+}
+.field input:focus, .field textarea:focus { border-color: var(--teal); background: #fff; }
+.field textarea { resize: vertical; min-height: 70px; font-family: 'DM Mono', monospace; font-size: 12px; }
+.field-hint { font-size: 11px; color: var(--ink-3); margin-top: 4px; }
+
+.range-wrap { display: flex; gap: 8px; }
+.range-wrap input { flex: 1; }
+
+/* Reduction slider */
+.slider-row { display: flex; align-items: center; gap: 10px; }
+.slider-row input[type=range] {
+  flex: 1; accent-color: var(--teal);
+  height: 4px; cursor: pointer;
+}
+.slider-val {
+  font-family: 'DM Mono', monospace; font-size: 13px;
+  font-weight: 500; color: var(--ink); min-width: 38px; text-align: right;
+}
+
+/* Toggle for capacity adjustment panels */
+.toggle-section { margin-top: 6px; }
+.toggle-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 6px; cursor: pointer;
+  background: var(--paper); border: 1px solid var(--border);
+  transition: background .1s;
+}
+.toggle-header:hover { background: var(--slate-2); }
+.toggle-label { font-size: 12px; font-weight: 600; color: var(--ink-2); flex: 1; }
+.toggle-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 7px;
+  border-radius: 12px; background: var(--amber-2); color: var(--amber);
+}
+.toggle-badge.green { background: var(--teal-2); color: var(--teal); }
+.toggle-arrow { font-size: 10px; color: var(--ink-3); transition: transform .2s; }
+.toggle-arrow.open { transform: rotate(90deg); }
+.toggle-body { padding: 12px 2px 4px; display: none; }
+.toggle-body.visible { display: block; }
+
+/* Run button */
+.btn-run {
+  width: 100%; padding: 11px; border-radius: 7px;
+  border: none; background: var(--teal); color: #fff;
+  font-family: inherit; font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: opacity .15s;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 4px;
+}
+.btn-run:hover { opacity: .88; }
+.btn-run:disabled { opacity: .45; cursor: not-allowed; }
+.spin { display: inline-block; animation: spin .6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Result cards ── */
+.result-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.res-card {
+  border-radius: 7px; padding: 12px 13px;
+  border: 1px solid transparent;
+}
+.res-card.p50  { background: var(--teal-2);  border-color: #99F6E4; }
+.res-card.p85  { background: var(--amber-2); border-color: #FCD34D; }
+.res-card.p95  { background: var(--rose-2);  border-color: #FECDD3; }
+.res-label { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 4px; }
+.res-card.p50 .res-label  { color: var(--teal); }
+.res-card.p85 .res-label  { color: var(--amber); }
+.res-card.p95 .res-label  { color: var(--rose); }
+.res-date { font-size: 16px; font-weight: 700; letter-spacing: -.02em; color: var(--ink); line-height: 1.2; }
+.res-weeks { font-size: 11px; color: var(--ink-3); margin-top: 3px; }
+
+/* Sept deadline card */
+.sept-card {
+  background: var(--slate-2); border: 1px solid var(--border-2);
+  border-radius: 7px; padding: 12px 13px; margin-bottom: 14px;
+}
+.sept-label { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; }
+.sept-nums { display: flex; gap: 16px; flex-wrap: wrap; }
+.sept-item { display: flex; flex-direction: column; gap: 2px; }
+.sept-val { font-size: 20px; font-weight: 700; letter-spacing: -.02em; }
+.sept-val.good { color: var(--teal); }
+.sept-val.warn { color: var(--amber); }
+.sept-val.bad  { color: var(--rose); }
+.sept-sub { font-size: 10px; color: var(--ink-3); }
+
+/* ── Chart ── */
+.chart-wrap { position: relative; height: 220px; }
+
+/* ── Timeline visual ── */
+.timeline { margin-top: 12px; }
+.tl-label { font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 8px; }
+.tl-bar-wrap { position: relative; height: 36px; border-radius: 6px; overflow: hidden; background: var(--paper); border: 1px solid var(--border); }
+.tl-bar { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #fff; }
+.tl-markers { display: flex; justify-content: space-between; margin-top: 4px; font-size: 10px; color: var(--ink-3); }
+.tl-legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+.tl-leg { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--ink-2); }
+.tl-dot { width: 10px; height: 10px; border-radius: 3px; }
+
+/* ── Interpretation ── */
+.interp-panel .panel-body p { font-size: 13px; color: var(--ink-2); margin-bottom: 10px; line-height: 1.7; }
+.interp-panel .panel-body p:last-child { margin-bottom: 0; }
+.interp-panel .panel-body strong { color: var(--ink); }
+.note-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; padding: 3px 9px; border-radius: 12px;
+  font-weight: 600; margin-bottom: 10px;
+}
+.note-chip.warn { background: var(--amber-2); color: var(--amber); }
+.note-chip.ok   { background: var(--teal-2);  color: var(--teal); }
+
+/* ── Empty / loading ── */
+.empty {
+  padding: 48px 16px; text-align: center;
+  color: var(--ink-3); font-size: 13px; line-height: 1.7;
+}
+.empty-icon { font-size: 28px; display: block; margin-bottom: 10px; }
+
+/* ── Responsive ── */
+@media (max-width: 760px) {
+  .layout { grid-template-columns: 1fr; }
+  .scenarios { grid-template-columns: 1fr; }
+  .result-grid { grid-template-columns: 1fr; }
+  .masthead { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ══ MASTHEAD ══ -->
+  <div class="masthead">
+    <div class="masthead-left">
+      <h1>Prognoza Monte Carlo</h1>
+      <p>Probabilistyczna prognoza dostarczania backlogu · start: lipiec 2026</p>
+      <div class="masthead-badge">
+        <span>🎲</span>
+        <span class="sim-count" id="sim-label">10 000 symulacji</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SCENARIOS ══ -->
+  <div class="scenarios">
+    <button class="scenario-btn active" onclick="setScenario(0)" id="sc0">
+      <div class="sc-num">Scenariusz 1</div>
+      <div class="sc-label">Bazowy</div>
+      <div class="sc-desc">62 elementy, historyczne tempo</div>
+    </button>
+    <button class="scenario-btn" onclick="setScenario(1)" id="sc1">
+      <div class="sc-num">Scenariusz 2</div>
+      <div class="sc-label">+ nowe wymagania</div>
+      <div class="sc-desc">20–30% scope creep w backlogu</div>
+    </button>
+    <button class="scenario-btn" onclick="setScenario(2)" id="sc2">
+      <div class="sc-num">Scenariusz 3</div>
+      <div class="sc-label">Pełny kontekst</div>
+      <div class="sc-desc">Urlopy + nowe wymagania + naprawy</div>
+    </button>
+  </div>
+
+  <!-- ══ LAYOUT ══ -->
+  <div class="layout">
+
+    <!-- ── LEFT: Inputs ── -->
+    <div id="left-col">
+
+      <!-- Backlog -->
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Backlog</div>
+            <div class="panel-sub">Co mamy do dostarczenia</div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="field">
+            <label>Liczba elementów w backlogu</label>
+            <input type="number" id="backlog-size" value="62" min="1">
+            <div class="field-hint">Historyjki + zadania techniczne</div>
+          </div>
+          <div class="field">
+            <label>Data startu pracy</label>
+            <input type="text" id="start-date" value="07/07/2026" placeholder="DD/MM/YYYY">
+          </div>
+        </div>
+      </div>
+
+      <!-- Throughput history -->
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Historyczne tempo</div>
+            <div class="panel-sub">Sprint throughput (oddzielony przecinkami)</div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="field">
+            <label>Przepustowość per sprint</label>
+            <textarea id="throughput-input">5, 4, 4, 5, 6, 4, 2, 3, 2, 5, 6</textarea>
+            <div class="field-hint">Liczba elementów zamkniętych w każdym 2-tygodniowym sprincie</div>
+          </div>
+          <div class="field">
+            <label>Długość sprintu (dni)</label>
+            <input type="number" id="sprint-length" value="14" min="1" max="90">
+          </div>
+        </div>
+      </div>
+
+      <!-- Scope creep — scenario 2+3 -->
+      <div class="panel" id="panel-scope">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Scope creep</div>
+            <div class="panel-sub">Nowe wymagania pojawiające się w trakcie</div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="field">
+            <label>Dodatkowe wymagania — zakres (%)</label>
+            <div class="range-wrap">
+              <input type="number" id="scope-min" value="20" min="0" max="100" placeholder="min">
+              <span style="align-self:center;color:var(--ink-3)">–</span>
+              <input type="number" id="scope-max" value="30" min="0" max="100" placeholder="max">
+            </div>
+            <div class="field-hint">Losowy % backlogu zostanie dodany w trakcie pracy</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Capacity constraints — scenario 3 -->
+      <div class="panel" id="panel-capacity">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Ograniczenia pojemności</div>
+            <div class="panel-sub">Urlopy i naprawy sezonowe</div>
+          </div>
+        </div>
+        <div class="panel-body">
+
+          <div class="toggle-section">
+            <div class="toggle-header" onclick="toggleSection('vacations')">
+              <span class="toggle-label">🏖 Urlopy — lipiec i sierpień</span>
+              <span class="toggle-badge" id="vac-badge">aktywne</span>
+              <span class="toggle-arrow" id="vac-arrow">▶</span>
+            </div>
+            <div class="toggle-body visible" id="vacations-body">
+              <div class="field">
+                <label>Redukcja przepustowości (%)</label>
+                <div class="slider-row">
+                  <input type="range" id="vacation-reduction" min="0" max="90" value="50"
+                    oninput="document.getElementById('vacation-val').textContent=this.value+'%'">
+                  <span class="slider-val" id="vacation-val">50%</span>
+                </div>
+                <div class="field-hint">Dotyczy sprintów w lipcu i sierpniu 2026</div>
+              </div>
+              <div class="field">
+                <label>Zakres miesięcy</label>
+                <div class="range-wrap">
+                  <input type="text" id="vac-start" value="07/2026" placeholder="MM/YYYY">
+                  <span style="align-self:center;color:var(--ink-3)">–</span>
+                  <input type="text" id="vac-end" value="08/2026" placeholder="MM/YYYY">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="toggle-section" style="margin-top:8px">
+            <div class="toggle-header" onclick="toggleSection('repairs')">
+              <span class="toggle-label">🔧 Naprawy sezonowe — od września</span>
+              <span class="toggle-badge" id="rep-badge">aktywne</span>
+              <span class="toggle-arrow" id="rep-arrow">▶</span>
+            </div>
+            <div class="toggle-body visible" id="repairs-body">
+              <div class="field">
+                <label>% czasu zajęty przez naprawy</label>
+                <div class="slider-row">
+                  <input type="range" id="repair-reduction" min="0" max="90" value="25"
+                    oninput="document.getElementById('repair-val').textContent=this.value+'%'">
+                  <span class="slider-val" id="repair-val">25%</span>
+                </div>
+                <div class="field-hint">Od września — stały odpis pojemności</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Run -->
+      <button class="btn-run" id="run-btn" onclick="runSimulation()">
+        🎲 Uruchom symulację
+      </button>
+
+    </div><!-- /left-col -->
+
+    <!-- ── RIGHT: Results ── -->
+    <div id="right-col">
+
+      <div class="panel" id="results-panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title" id="result-title">Wyniki</div>
+            <div class="panel-sub" id="result-sub">Uruchom symulację, aby zobaczyć prognozę</div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div id="results-inner">
+            <div class="empty">
+              <span class="empty-icon">📊</span>
+              Skonfiguruj parametry i kliknij <strong>Uruchom symulację</strong>.<br>
+              Każdy scenariusz można niezależnie dostosować.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chart -->
+      <div class="panel" id="chart-panel" style="display:none">
+        <div class="panel-head">
+          <div class="panel-title">Rozkład wyników symulacji</div>
+          <div class="panel-sub">Liczba sprintów potrzebnych do zamknięcia backlogu</div>
+        </div>
+        <div class="panel-body">
+          <div class="chart-wrap"><canvas id="mc-chart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Interpretation -->
+      <div class="panel interp-panel" id="interp-panel" style="display:none">
+        <div class="panel-head">
+          <div class="panel-title">Interpretacja</div>
+        </div>
+        <div class="panel-body" id="interp-body"></div>
+      </div>
+
+    </div><!-- /right-col -->
+  </div><!-- /layout -->
+
+</div><!-- /page -->
+
+<script>
+/* ══════════════════════════════════════════
+   STATE
+══════════════════════════════════════════ */
+const N_SIM = 10000;
+let currentScenario = 0;
+let chartInst = null;
+
+/* ══════════════════════════════════════════
+   SCENARIO TOGGLE
+══════════════════════════════════════════ */
+function setScenario(idx) {
+  currentScenario = idx;
+  [0,1,2].forEach(i => {
+    document.getElementById('sc'+i).classList.toggle('active', i === idx);
+  });
+  // Show/hide scope creep panel
+  document.getElementById('panel-scope').style.display = idx >= 1 ? 'block' : 'none';
+  // Show/hide capacity panel
+  document.getElementById('panel-capacity').style.display = idx >= 2 ? 'block' : 'none';
+
+  // Clear results
+  document.getElementById('results-inner').innerHTML = `
+    <div class="empty">
+      <span class="empty-icon">📊</span>
+      Skonfiguruj parametry i kliknij <strong>Uruchom symulację</strong>.
+    </div>`;
+  document.getElementById('chart-panel').style.display = 'none';
+  document.getElementById('interp-panel').style.display = 'none';
+  document.getElementById('result-sub').textContent = 'Uruchom symulację, aby zobaczyć prognozę';
+}
+
+function toggleSection(id) {
+  const body  = document.getElementById(id+'-body');
+  const arrow = document.getElementById(id === 'vacations' ? 'vac-arrow' : 'rep-arrow');
+  const isVis = body.classList.contains('visible');
+  body.classList.toggle('visible', !isVis);
+  arrow.classList.toggle('open', !isVis);
+}
+
+/* ══════════════════════════════════════════
+   PARSE HELPERS
+══════════════════════════════════════════ */
+function parseDate(str) {
+  str = str.trim();
+  const [d,m,y] = str.split('/');
+  return new Date(+y, +m-1, +d);
+}
+
+function parseMonthYear(str) {
+  const [m,y] = str.trim().split('/');
+  return { month: +m-1, year: +y };
+}
+
+function addDays(date, n) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + n);
+  return d;
+}
+
+function fmtDate(d) {
+  return d.toLocaleDateString('pl-PL', { day:'numeric', month:'long', year:'numeric' });
+}
+function fmtShort(d) {
+  return d.toLocaleDateString('pl-PL', { day:'2-digit', month:'2-digit', year:'numeric' });
+}
+
+function weeksBetween(a, b) {
+  return Math.round((b - a) / (7 * 24 * 3600 * 1000) * 10) / 10;
+}
+
+function percentile(arr, p) {
+  const s = [...arr].sort((a,b) => a-b);
+  const pos = (s.length-1) * p/100;
+  const lo = Math.floor(pos), hi = Math.ceil(pos);
+  return s[lo] + (s[hi]-s[lo])*(pos-lo);
+}
+
+/* ══════════════════════════════════════════
+   MONTE CARLO CORE
+  
+  Per simulation:
+  1. Sample a random historical throughput for each sprint
+  2. Apply capacity multiplier per sprint (vacation / repairs)
+  3. Add scope creep (scenario 2+3)
+  4. Count sprints until cumulative >= backlog
+══════════════════════════════════════════ */
+function runSimulation() {
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin">⚙</span> Obliczam…';
+
+  setTimeout(() => {
+    try { _simulate(); }
+    finally {
+      btn.disabled = false;
+      btn.innerHTML = '🎲 Uruchom symulację';
+    }
+  }, 30);
+}
+
+function _simulate() {
+  // ── Read inputs ──
+  const backlogBase    = parseInt(document.getElementById('backlog-size').value) || 62;
+  const startDate      = parseDate(document.getElementById('start-date').value);
+  const sprintDays     = parseInt(document.getElementById('sprint-length').value) || 14;
+  const rawTp          = document.getElementById('throughput-input').value
+    .split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v) && v >= 0);
+
+  if (!rawTp.length) { alert('Podaj historyczne tempo!'); return; }
+
+  const scopeMin = currentScenario >= 1 ? (parseFloat(document.getElementById('scope-min').value)||0)/100 : 0;
+  const scopeMax = currentScenario >= 1 ? (parseFloat(document.getElementById('scope-max').value)||0)/100 : 0;
+
+  const vacReduction = currentScenario >= 2 ? parseFloat(document.getElementById('vacation-reduction').value)/100 : 0;
+  const repReduction = currentScenario >= 2 ? parseFloat(document.getElementById('repair-reduction').value)/100 : 0;
+  const vacStart     = currentScenario >= 2 ? parseMonthYear(document.getElementById('vac-start').value) : null;
+  const vacEnd       = currentScenario >= 2 ? parseMonthYear(document.getElementById('vac-end').value)   : null;
+
+  // Sept 30 deadline
+  const septEnd = new Date(2026, 8, 30); // 30 Sep 2026
+
+  // ── Precompute sprint-level capacity multipliers ──
+  // We'll compute them lazily per sprint as needed (max 200 sprints)
+  const MAX_SPRINTS = 200;
+
+  function sprintDate(n) { return addDays(startDate, n * sprintDays); }
+
+  function capacityMult(sprintIdx) {
+    const d = sprintDate(sprintIdx);
+    const month = d.getMonth(), year = d.getFullYear();
+
+    let mult = 1;
+
+    // Vacation reduction
+    if (vacStart && vacEnd) {
+      const afterStart = (year > vacStart.year) || (year === vacStart.year && month >= vacStart.month);
+      const beforeEnd  = (year < vacEnd.year)   || (year === vacEnd.year   && month <= vacEnd.month);
+      if (afterStart && beforeEnd) mult *= (1 - vacReduction);
+    }
+
+    // Repair overhead (from September 2026 onwards)
+    if (month >= 8 && year >= 2026) mult *= (1 - repReduction);
+
+    return mult;
+  }
+
+  // ── Run N_SIM simulations ──
+  const sprintResults = new Array(N_SIM);  // sprints to complete
+  const endDates      = new Array(N_SIM);
+
+  for (let s = 0; s < N_SIM; s++) {
+    // Sample scope creep
+    const extraFrac = scopeMin + Math.random() * (scopeMax - scopeMin);
+    const backlog = Math.ceil(backlogBase * (1 + extraFrac));
+
+    let done = 0;
+    let sprint = 0;
+
+    while (done < backlog && sprint < MAX_SPRINTS) {
+      // Sample a random historical throughput
+      const tp = rawTp[Math.floor(Math.random() * rawTp.length)];
+      // Apply capacity multiplier
+      const effective = tp * capacityMult(sprint);
+      done += effective;
+      sprint++;
+    }
+
+    sprintResults[s] = sprint;
+    endDates[s] = sprintDate(sprint).getTime();
+  }
+
+  // ── Percentiles ──
+  const p50Date  = new Date(percentile(endDates, 50));
+  const p85Date  = new Date(percentile(endDates, 85));
+  const p95Date  = new Date(percentile(endDates, 95));
+  const p50Sp    = percentile(sprintResults, 50);
+  const p85Sp    = percentile(sprintResults, 85);
+  const p95Sp    = percentile(sprintResults, 95);
+
+  // ── Sept question: how many items done by Sept 30? ──
+  // Re-run tracking items
+  const itemsDoneBySept = new Array(N_SIM);
+  for (let s = 0; s < N_SIM; s++) {
+    const extraFrac = scopeMin + Math.random() * (scopeMax - scopeMin);
+    const backlog = Math.ceil(backlogBase * (1 + extraFrac));
+    let done = 0, sprint = 0;
+    while (done < backlog && sprint < MAX_SPRINTS) {
+      const d = sprintDate(sprint);
+      if (d > septEnd) break;
+      const tp = rawTp[Math.floor(Math.random() * rawTp.length)];
+      done += tp * capacityMult(sprint);
+      sprint++;
+    }
+    itemsDoneBySept[s] = Math.min(done, backlog);
+  }
+
+  const septP50 = Math.round(percentile(itemsDoneBySept, 50));
+  const septP85 = Math.round(percentile(itemsDoneBySept, 85));
+
+  // ── Render ──
+  renderResults(p50Date, p85Date, p95Date, p50Sp, p85Sp, p95Sp, septP50, septP85, startDate, backlogBase, sprintDays);
+  renderChart(sprintResults, startDate, sprintDays);
+  renderInterpretation(p50Date, p85Date, p95Date, septP50, septP85, backlogBase, scopeMin, scopeMax, vacReduction, repReduction);
+
+  document.getElementById('result-sub').textContent =
+    `${N_SIM.toLocaleString('pl')} symulacji · Scenariusz ${currentScenario+1} · backlog: ${backlogBase} elementów`;
+}
+
+/* ══════════════════════════════════════════
+   RENDER RESULTS
+══════════════════════════════════════════ */
+function renderResults(p50, p85, p95, sp50, sp85, sp95, septP50, septP85, startDate, backlog, sprintDays) {
+  const septEnd = new Date(2026, 8, 30);
+  const septLabel = '30 wrz 2026';
+
+  // Timeline: map from start to p95 end
+  const totalMs = p95.getTime() - startDate.getTime();
+  function pct(d) { return Math.max(0, Math.min(100, (d.getTime()-startDate.getTime())/totalMs*100)); }
+
+  const p50pct = pct(p50);
+  const p85pct = pct(p85);
+  const p95pct = pct(p95);
+  const seppct = pct(septEnd);
+
+  const html = `
+    <div class="result-grid">
+      <div class="res-card p50">
+        <div class="res-label">P50 — 50% szans</div>
+        <div class="res-date">${fmtShort(p50)}</div>
+        <div class="res-weeks">ok. ${sp50.toFixed(0)} sprintów</div>
+      </div>
+      <div class="res-card p85">
+        <div class="res-label">P85 — 85% szans</div>
+        <div class="res-date">${fmtShort(p85)}</div>
+        <div class="res-weeks">ok. ${sp85.toFixed(0)} sprintów</div>
+      </div>
+      <div class="res-card p95">
+        <div class="res-label">P95 — 95% szans</div>
+        <div class="res-date">${fmtShort(p95)}</div>
+        <div class="res-weeks">ok. ${sp95.toFixed(0)} sprintów</div>
+      </div>
+    </div>
+
+    <div class="sept-card">
+      <div class="sept-label">📅 Do końca września 2026 — ile elementów zdążymy?</div>
+      <div class="sept-nums">
+        <div class="sept-item">
+          <span class="sept-val ${septP50/backlog >= .85 ? 'good' : septP50/backlog >= .6 ? 'warn' : 'bad'}">${septP50}</span>
+          <span class="sept-sub">mediana (P50)</span>
+        </div>
+        <div class="sept-item">
+          <span class="sept-val ${septP85/backlog >= .85 ? 'good' : septP85/backlog >= .6 ? 'warn' : 'bad'}">${septP85}</span>
+          <span class="sept-sub">pesymistycznie (P85)</span>
+        </div>
+        <div class="sept-item">
+          <span class="sept-val" style="color:var(--ink-3)">${backlog}</span>
+          <span class="sept-sub">cały backlog</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="timeline">
+      <div class="tl-label">Oś czasu · od startu do P95</div>
+      <div class="tl-bar-wrap">
+        <div class="tl-bar" style="left:0;width:${p50pct}%;background:#0D9488;opacity:.6"></div>
+        <div class="tl-bar" style="left:${p50pct}%;width:${p85pct-p50pct}%;background:#D97706;opacity:.7"></div>
+        <div class="tl-bar" style="left:${p85pct}%;width:${p95pct-p85pct}%;background:#BE123C;opacity:.65"></div>
+        ${seppct <= 100 ? `<div style="position:absolute;top:0;bottom:0;left:${seppct}%;width:2px;background:#334155;opacity:.8;z-index:2"></div>` : ''}
+      </div>
+      <div class="tl-markers">
+        <span>Start (${fmtShort(new Date(startDate))})</span>
+        ${seppct <= 100 && seppct > 5 ? `<span style="position:relative;left:${seppct-10}%">30 wrz</span>` : ''}
+        <span>P95 (${fmtShort(p95)})</span>
+      </div>
+      <div class="tl-legend">
+        <div class="tl-leg"><div class="tl-dot" style="background:#0D9488"></div>Do P50</div>
+        <div class="tl-leg"><div class="tl-dot" style="background:#D97706"></div>P50–P85</div>
+        <div class="tl-leg"><div class="tl-dot" style="background:#BE123C"></div>P85–P95</div>
+        ${seppct <= 100 ? '<div class="tl-leg"><div class="tl-dot" style="background:#334155"></div>Deadline wrz</div>' : ''}
+      </div>
+    </div>`;
+
+  document.getElementById('results-inner').innerHTML = html;
+}
+
+/* ══════════════════════════════════════════
+   RENDER HISTOGRAM
+══════════════════════════════════════════ */
+function renderChart(sprintResults, startDate, sprintDays) {
+  const panel = document.getElementById('chart-panel');
+  panel.style.display = 'block';
+
+  const min = Math.min(...sprintResults);
+  const max = Math.max(...sprintResults);
+  const bins = Math.min(max - min + 1, 40);
+  const binSize = Math.ceil((max - min + 1) / bins);
+
+  const counts = new Array(bins).fill(0);
+  const labels = [];
+
+  for (let i = 0; i < bins; i++) {
+    const lo = min + i * binSize;
+    const hi = lo + binSize - 1;
+    labels.push(lo === hi ? `${lo}` : `${lo}–${hi}`);
+    for (const v of sprintResults) {
+      if (v >= lo && v <= hi) counts[i]++;
+    }
+  }
+
+  const p50sp = percentile(sprintResults, 50);
+  const p85sp = percentile(sprintResults, 85);
+  const p95sp = percentile(sprintResults, 95);
+
+  // Color bins by zone
+  const colors = labels.map((_, i) => {
+    const mid = min + i * binSize + binSize/2;
+    if (mid <= p50sp) return 'rgba(13,148,136,.6)';
+    if (mid <= p85sp) return 'rgba(217,119,6,.6)';
+    if (mid <= p95sp) return 'rgba(190,18,60,.6)';
+    return 'rgba(100,116,139,.4)';
+  });
+
+  if (chartInst) chartInst.destroy();
+  chartInst = new Chart(document.getElementById('mc-chart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Symulacje',
+        data: counts,
+        backgroundColor: colors,
+        borderWidth: 0,
+        borderRadius: 3,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: item => ` ${item.raw} symulacji (${(item.raw/N_SIM*100).toFixed(1)}%)`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 10 }, color: '#8B909C',
+            maxTicksLimit: 10, maxRotation: 0 },
+          title: { display: true, text: 'Liczba sprintów', color: '#8B909C', font: { size: 11 } }
+        },
+        y: {
+          grid: { color: '#E2E5EB' },
+          ticks: { font: { size: 10 }, color: '#8B909C' },
+          title: { display: true, text: 'Liczba symulacji', color: '#8B909C', font: { size: 11 } }
+        }
+      }
+    }
+  });
+}
+
+/* ══════════════════════════════════════════
+   RENDER INTERPRETATION
+══════════════════════════════════════════ */
+function renderInterpretation(p50, p85, p95, septP50, septP85, backlog, scopeMin, scopeMax, vacR, repR) {
+  const panel = document.getElementById('interp-panel');
+  const body  = document.getElementById('interp-body');
+  panel.style.display = 'block';
+
+  const septEnd   = new Date(2026, 8, 30);
+  const deadlineMet = p85 <= septEnd;
+  const scenNames = ['bazowym (bez modyfikatorów)', 'z uwzględnieniem scope creep', 'pełnym (scope creep + urlopy + naprawy)'];
+
+  let html = `<span class="note-chip ${deadlineMet?'ok':'warn'}">${deadlineMet ? '✓ Deadline możliwy' : '⚠ Deadline zagrożony'}</span>`;
+
+  html += `<p>W scenariuszu <strong>${scenNames[currentScenario]}</strong>:
+    mediana ukończenia backlogu to <strong>${fmtDate(p50)}</strong>,
+    z 85% prawdopodobieństwem dostarczymy do <strong>${fmtDate(p85)}</strong>,
+    a z 95% — do <strong>${fmtDate(p95)}</strong>.</p>`;
+
+  if (currentScenario >= 1 && (scopeMin > 0 || scopeMax > 0)) {
+    html += `<p>Uwzględniono <strong>${Math.round(scopeMin*100)}–${Math.round(scopeMax*100)}% scope creep</strong> —
+      oznacza to, że efektywny backlog w każdej symulacji jest losowo powiększany o tę wartość.
+      To znacząco przesuwa datę ukończenia w stosunku do scenariusza bazowego.</p>`;
+  }
+
+  if (currentScenario >= 2) {
+    if (vacR > 0) html += `<p>W lipcu i sierpniu 2026 przepustowość jest zredukowana o <strong>${Math.round(vacR*100)}%</strong>
+      z powodu urlopów. Urlopy w środku projektu mają nieproporcjonalnie duży wpływ na datę ukończenia.</p>`;
+    if (repR > 0) html += `<p>Od września 2026 <strong>${Math.round(repR*100)}% pojemności zespołu</strong> jest zajęte przez naprawy sezonowe.
+      To trwały odpis, który będzie odczuwalny przez cały końcowy etap projektu.</p>`;
+  }
+
+  html += `<p>Do końca września 2026 mediana ukończonych elementów wynosi <strong>${septP50} z ${backlog}</strong>
+    (${Math.round(septP50/backlog*100)}%). Z 85% pewnością zamkniemy co najmniej <strong>${septP85} elementów</strong>
+    (${Math.round(septP85/backlog*100)}%) przed tym terminem.</p>`;
+
+  html += `<p style="color:var(--ink-3);font-size:12px;margin-top:4px">
+    Prognoza oparta na <strong>${N_SIM.toLocaleString('pl')} symulacjach</strong>. 
+    P85 to dobra „robocza" data do planowania — daje bufor bezpieczeństwa przy zachowaniu realizmu.
+    P95 to data, którą można wpisać w kontrakt.</p>`;
+
+  body.innerHTML = html;
+}
+
+/* ══════════════════════════════════════════
+   INIT
+══════════════════════════════════════════ */
+// Show only relevant panels at start
+document.getElementById('panel-scope').style.display = 'none';
+document.getElementById('panel-capacity').style.display = 'none';
+
+// Initialize toggle arrows
+document.getElementById('vac-arrow').classList.add('open');
+document.getElementById('rep-arrow').classList.add('open');
+
+// Auto-run on load with base scenario
+window.addEventListener('DOMContentLoaded', () => runSimulation());
+</script>
+</body>
+</html>

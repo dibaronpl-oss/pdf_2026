@@ -1,1 +1,703 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tempo dostarczania · XmR Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#F5F6F8; --surface:#FFF; --surface-2:#F8F9FB; --border:#E4E8EF;
+  --text-1:#111827; --text-2:#4B5563; --text-3:#9CA3AF;
+  --blue:#2563EB; --blue-light:#DBEAFE;
+  --green:#16A34A; --green-light:#DCFCE7;
+  --amber:#D97706; --amber-light:#FEF3C7;
+  --red:#DC2626; --red-light:#FEE2E2;
+  --purple:#7C3AED;
+  --radius:10px;
+  --shadow:0 1px 3px rgba(0,0,0,.07),0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:0 4px 8px rgba(0,0,0,.07),0 2px 4px rgba(0,0,0,.04);
+}
+body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--text-1); min-height:100vh; line-height:1.5; }
+.page { max-width:1100px; margin:0 auto; padding:32px 20px 60px; }
 
+/* Header */
+.page-header { margin-bottom:28px; }
+.page-header h1 { font-size:24px; font-weight:800; letter-spacing:-.03em; }
+.page-header p  { font-size:14px; color:var(--text-3); margin-top:4px; }
+
+/* Section */
+.section { margin-bottom:24px; }
+.section-title { font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--text-3); margin-bottom:10px; }
+
+/* Import panel */
+.import-panel { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px 20px; margin-bottom:24px; }
+.import-panel summary { font-size:13px; font-weight:600; cursor:pointer; color:var(--text-2); user-select:none; list-style:none; display:flex; align-items:center; gap:6px; }
+.import-panel summary::before { content:'▶'; font-size:10px; transition:transform .2s; }
+details[open] summary::before { transform:rotate(90deg); }
+.import-body { margin-top:14px; display:flex; flex-direction:column; gap:10px; }
+.import-body label { font-size:12px; color:var(--text-3); }
+.import-body textarea { width:100%; height:150px; border:1.5px solid var(--border); border-radius:8px; padding:10px 12px; font-size:12px; font-family:'Courier New',monospace; color:var(--text-1); background:var(--surface-2); resize:vertical; outline:none; }
+.import-body textarea:focus { border-color:var(--blue); }
+.import-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.btn { padding:7px 16px; border-radius:7px; border:none; font-size:13px; font-weight:600; cursor:pointer; transition:opacity .15s; }
+.btn-primary { background:var(--text-1); color:#fff; }
+.btn-primary:hover { opacity:.8; }
+.btn-ghost { background:none; border:1.5px solid var(--border); color:var(--text-2); }
+.btn-ghost:hover { border-color:var(--blue); color:var(--blue); }
+.import-msg { font-size:12px; color:var(--text-3); }
+.import-msg.ok  { color:var(--green); }
+.import-msg.err { color:var(--red); }
+
+/* Note */
+.note-box { background:var(--blue-light); border:1px solid #BFDBFE; border-radius:var(--radius); padding:14px 18px; margin-bottom:24px; }
+.note-box h4 { font-size:13px; font-weight:700; color:var(--blue); margin-bottom:7px; }
+.note-box ul { font-size:12px; color:#1D4ED8; padding-left:18px; line-height:1.8; }
+
+/* KPI */
+.kpi-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; margin-bottom:24px; }
+.kpi-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:13px 15px; box-shadow:var(--shadow); }
+.kpi-label { font-size:11px; color:var(--text-3); margin-bottom:5px; }
+.kpi-value { font-size:22px; font-weight:800; letter-spacing:-.02em; line-height:1; }
+.kpi-sub { font-size:11px; color:var(--text-3); margin-top:4px; }
+.kpi-card.accent-blue .kpi-value  { color:var(--blue); }
+.kpi-card.accent-green .kpi-value { color:var(--green); }
+.kpi-card.accent-amber .kpi-value { color:var(--amber); }
+.kpi-card.accent-red .kpi-value   { color:var(--red); }
+
+/* Charts */
+.chart-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow-md); padding:20px 20px 14px; margin-bottom:20px; }
+.chart-title { font-size:15px; font-weight:700; }
+.chart-sub   { font-size:12px; color:var(--text-3); margin-bottom:14px; margin-top:2px; }
+.chart-wrap  { position:relative; height:280px; }
+.chart-legend { display:flex; gap:14px; flex-wrap:wrap; margin-top:12px; padding-top:11px; border-top:1px solid var(--border); font-size:12px; color:var(--text-2); }
+.legend-item { display:flex; align-items:center; gap:6px; }
+.legend-line { width:22px; height:3px; border-radius:2px; flex-shrink:0; }
+.legend-dash { width:22px; height:0; border-top:2px dashed; flex-shrink:0; }
+.legend-dot  { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+
+/* Table */
+.table-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:20px; overflow:hidden; }
+.table-card-header { padding:13px 18px; border-bottom:1px solid var(--border); font-size:14px; font-weight:600; }
+.table-scroll { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th { text-align:left; padding:8px 13px; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--text-3); background:var(--surface-2); border-bottom:1px solid var(--border); white-space:nowrap; }
+td { padding:9px 13px; border-bottom:1px solid var(--border); color:var(--text-2); }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:var(--bg); }
+.badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:5px; font-size:11px; font-weight:600; }
+.badge-signal { background:var(--red-light); color:var(--red); }
+.badge-ok     { background:var(--green-light); color:var(--green); }
+.num        { font-variant-numeric:tabular-nums; font-weight:600; color:var(--text-1); }
+.num-signal { font-variant-numeric:tabular-nums; font-weight:700; color:var(--red); }
+
+/* Interpretation */
+.interpret-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:20px 22px; margin-bottom:20px; }
+.interpret-card h3 { font-size:14px; font-weight:700; margin-bottom:12px; }
+.interpret-body { font-size:13px; color:var(--text-2); line-height:1.8; }
+.interpret-body p { margin-bottom:10px; }
+.interpret-body p:last-child { margin-bottom:0; }
+.interpret-body strong { color:var(--text-1); }
+
+@media (max-width:600px) {
+  .kpi-grid { grid-template-columns:repeat(2,1fr); }
+  .chart-wrap { height:220px; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    <h1>Tempo dostarczania</h1>
+    <p>XmR — wykresy kontrolne tygodniowego throughputu · granice oparte na medianie</p>
+  </div>
+
+  <!-- IMPORT -->
+  <details class="import-panel" id="import-details">
+    <summary>Importuj własne dane (CSV)</summary>
+    <div class="import-body">
+      <label>Wklej dane: <strong>data (DD/MM/YYYY), przepustowość</strong> — jeden wiersz na dzień. Dni z wartością 0 zostaną zachowane.</label>
+      <textarea id="csv-input" placeholder="07/01/2025, 0&#10;08/01/2025, 2&#10;09/01/2025, 10&#10;..."></textarea>
+      <div class="import-actions">
+        <button class="btn btn-primary" onclick="importCSV()">Wczytaj dane</button>
+        <button class="btn btn-ghost" onclick="loadFileData()">Przywróć dane z pliku</button>
+        <span class="import-msg" id="import-msg"></span>
+      </div>
+    </div>
+  </details>
+
+  <!-- NOTE -->
+  <div class="note-box">
+    <h4>ℹ️ Jak czytać wykresy XmR</h4>
+    <ul>
+      <li>XmR <strong>nie służy do rozliczania ludzi</strong> — służy do sprawdzania, czy system jest stabilny.</li>
+      <li>Punkty poza granicami to <strong>sygnał do rozmowy</strong>, nie dowód błędu.</li>
+      <li>Wysoki throughput może oznaczać hurtowe zamknięcie starych zadań, a nie wzrost zdolności dostarczania.</li>
+      <li>Niski throughput może oznaczać blokady, urlopy, zależności, brak decyzji lub zbyt duży WIP.</li>
+      <li>Granice obliczone są na podstawie <strong>mediany</strong> — odporne na outliers.</li>
+    </ul>
+  </div>
+
+  <!-- KPI -->
+  <div class="section">
+    <div class="section-title">Podsumowanie</div>
+    <div class="kpi-grid" id="kpi-grid"></div>
+  </div>
+
+  <!-- X CHART -->
+  <div class="section">
+    <div class="section-title">Wykres X — tygodniowy throughput</div>
+    <div class="chart-card">
+      <div class="chart-title">X — Tygodniowy throughput</div>
+      <div class="chart-sub">Liczba zadań zakończonych w każdym tygodniu (poniedziałek–niedziela)</div>
+      <div class="chart-wrap"><canvas id="xChart"></canvas></div>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-line" style="background:var(--blue)"></div>Throughput</div>
+        <div class="legend-item"><div class="legend-dash" style="border-color:var(--blue)"></div>CL (mediana)</div>
+        <div class="legend-item"><div class="legend-dash" style="border-color:var(--red)"></div>UNPL</div>
+        <div class="legend-item"><div class="legend-dash" style="border-color:var(--green)"></div>LNPL</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>Signal</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- mR CHART -->
+  <div class="section">
+    <div class="section-title">Wykres mR — moving range</div>
+    <div class="chart-card">
+      <div class="chart-title">mR — Moving Range</div>
+      <div class="chart-sub">Bezwzględna zmiana throughputu między kolejnymi tygodniami · pierwszy tydzień bez wartości</div>
+      <div class="chart-wrap"><canvas id="mrChart"></canvas></div>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-line" style="background:var(--purple)"></div>Moving Range</div>
+        <div class="legend-item"><div class="legend-dash" style="border-color:var(--blue)"></div>MR_CL (mediana mR)</div>
+        <div class="legend-item"><div class="legend-dash" style="border-color:var(--red)"></div>MR_UNPL</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>Signal mR</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="section">
+    <div class="section-title">Dane tygodniowe</div>
+    <div class="table-card">
+      <div class="table-card-header">Tabela tygodniowego throughputu</div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>#</th><th>Tydzień od</th><th>Tydzień do</th><th>Throughput (X)</th><th>mR</th><th>Signal X</th><th>Signal mR</th></tr></thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- INTERPRETATION -->
+  <div class="section">
+    <div class="section-title">Interpretacja</div>
+    <div class="interpret-card">
+      <h3>📝 Analiza systemu dostarczania</h3>
+      <div class="interpret-body" id="interpretation"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ════════════════════════════════════════════
+//  DANE Z PLIKU Throughput_Daily.xlsx
+//  103 wiersze dzienne, 07/01/2025–19/04/2025
+//  Łącznie: 203 zadania
+// ════════════════════════════════════════════
+const FILE_DATA = `07/01/2025, 0
+08/01/2025, 2
+09/01/2025, 10
+10/01/2025, 3
+11/01/2025, 0
+12/01/2025, 0
+13/01/2025, 2
+14/01/2025, 3
+15/01/2025, 7
+16/01/2025, 0
+17/01/2025, 0
+18/01/2025, 0
+19/01/2025, 0
+20/01/2025, 5
+21/01/2025, 2
+22/01/2025, 0
+23/01/2025, 0
+24/01/2025, 0
+25/01/2025, 0
+26/01/2025, 0
+27/01/2025, 1
+28/01/2025, 1
+29/01/2025, 0
+30/01/2025, 5
+31/01/2025, 4
+01/02/2025, 0
+02/02/2025, 0
+03/02/2025, 7
+04/02/2025, 0
+05/02/2025, 2
+06/02/2025, 2
+07/02/2025, 12
+08/02/2025, 0
+09/02/2025, 0
+10/02/2025, 1
+11/02/2025, 0
+12/02/2025, 0
+13/02/2025, 2
+14/02/2025, 12
+15/02/2025, 0
+16/02/2025, 0
+17/02/2025, 1
+18/02/2025, 0
+19/02/2025, 0
+20/02/2025, 3
+21/02/2025, 11
+22/02/2025, 0
+23/02/2025, 0
+24/02/2025, 6
+25/02/2025, 0
+26/02/2025, 0
+27/02/2025, 6
+28/02/2025, 7
+01/03/2025, 0
+02/03/2025, 0
+03/03/2025, 2
+04/03/2025, 0
+05/03/2025, 0
+06/03/2025, 3
+07/03/2025, 5
+08/03/2025, 0
+09/03/2025, 0
+10/03/2025, 1
+11/03/2025, 0
+12/03/2025, 0
+13/03/2025, 9
+14/03/2025, 7
+15/03/2025, 0
+16/03/2025, 0
+17/03/2025, 3
+18/03/2025, 0
+19/03/2025, 0
+20/03/2025, 4
+21/03/2025, 10
+22/03/2025, 0
+23/03/2025, 0
+24/03/2025, 1
+25/03/2025, 0
+26/03/2025, 0
+27/03/2025, 5
+28/03/2025, 1
+29/03/2025, 0
+30/03/2025, 0
+31/03/2025, 2
+01/04/2025, 0
+02/04/2025, 0
+03/04/2025, 2
+04/04/2025, 11
+05/04/2025, 0
+06/04/2025, 0
+07/04/2025, 1
+08/04/2025, 0
+09/04/2025, 0
+10/04/2025, 5
+11/04/2025, 2
+12/04/2025, 0
+13/04/2025, 0
+14/04/2025, 1
+15/04/2025, 0
+16/04/2025, 0
+17/04/2025, 4
+18/04/2025, 7
+19/04/2025, 0`;
+
+// ════════════════════════════════════════════
+//  PARSE INPUT DATA (DD/MM/YYYY, value)
+// ════════════════════════════════════════════
+function parseInputData(text) {
+  const lines = text.trim().split('\n').filter(l => l.trim());
+  const result = [];
+  for (const line of lines) {
+    const parts = line.split(/[,;\t]/).map(p => p.trim());
+    if (parts.length < 2) continue;
+    const dt = parseDatePolish(parts[0]);
+    const val = parseInt(parts[1]);
+    if (!dt || isNaN(val) || val < 0) continue;
+    result.push({ date: dt, throughput: val });
+  }
+  result.sort((a, b) => a.date - b.date);
+  return result;
+}
+
+function parseDatePolish(str) {
+  str = str.trim();
+  // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+  const dmy = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+  if (dmy) return new Date(+dmy[3], +dmy[2]-1, +dmy[1]);
+  // YYYY-MM-DD
+  const ymd = str.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+  if (ymd) return new Date(+ymd[1], +ymd[2]-1, +ymd[3]);
+  return null;
+}
+
+// ════════════════════════════════════════════
+//  GET WEEK START — zawsze poniedziałek
+// ════════════════════════════════════════════
+function getWeekStartMonday(date) {
+  const d = new Date(date);
+  const day = d.getDay(); // 0=Sun, 1=Mon...6=Sat
+  const diff = day === 0 ? 6 : day - 1;
+  d.setDate(d.getDate() - diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+// ════════════════════════════════════════════
+//  AGGREGATE DAILY → WEEKLY
+// ════════════════════════════════════════════
+function aggregateDailyToWeekly(dailyData) {
+  const weekMap = new Map();
+  for (const entry of dailyData) {
+    const monday = getWeekStartMonday(entry.date);
+    const key = monday.toISOString();
+    if (!weekMap.has(key)) {
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      weekMap.set(key, { weekStart: new Date(monday), weekEnd: new Date(sunday), throughput: 0 });
+    }
+    weekMap.get(key).throughput += entry.throughput;
+  }
+  return Array.from(weekMap.values()).sort((a, b) => a.weekStart - b.weekStart);
+}
+
+// ════════════════════════════════════════════
+//  MOVING RANGES
+// ════════════════════════════════════════════
+function calculateMovingRanges(weeklyData) {
+  return weeklyData.map((w, i) => ({
+    ...w,
+    mR: i === 0 ? null : Math.abs(w.throughput - weeklyData[i-1].throughput)
+  }));
+}
+
+// ════════════════════════════════════════════
+//  STATISTICS
+// ════════════════════════════════════════════
+function calculateMedian(arr) {
+  if (!arr.length) return 0;
+  const s = [...arr].sort((a,b) => a-b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 === 0 ? (s[m-1] + s[m]) / 2 : s[m];
+}
+
+function calculatePercentile(arr, p) {
+  if (!arr.length) return 0;
+  const s = [...arr].sort((a,b) => a-b);
+  const pos = (s.length - 1) * (p / 100);
+  const lo = Math.floor(pos), hi = Math.ceil(pos);
+  return Math.round((s[lo] + (s[hi] - s[lo]) * (pos - lo)) * 10) / 10;
+}
+
+// ════════════════════════════════════════════
+//  XmR LIMITS — oparte na medianie
+//  Stała 3.145 = 3/d2 gdzie d2=1.128 (n=2)
+//  Stała 3.865 = D4*d2 = 3.267*1.128
+// ════════════════════════════════════════════
+function calculateXmRLimits(weeklyWithMR) {
+  const xVals  = weeklyWithMR.map(w => w.throughput);
+  const mrVals = weeklyWithMR.filter(w => w.mR !== null).map(w => w.mR);
+
+  const X_CL      = calculateMedian(xVals);
+  const MR_median = calculateMedian(mrVals);
+
+  const X_UNPL  = X_CL + 3.145 * MR_median;
+  const X_LNPL  = Math.max(0, X_CL - 3.145 * MR_median);
+  const MR_CL   = MR_median;
+  const MR_UNPL = 3.865 * MR_median;
+  const MR_LNPL = 0;
+
+  return { X_CL, X_UNPL, X_LNPL, MR_CL, MR_UNPL, MR_LNPL, MR_median };
+}
+
+// ════════════════════════════════════════════
+//  FORMAT HELPERS
+// ════════════════════════════════════════════
+function fmtDate(d) {
+  return d.toLocaleDateString('pl-PL', { day:'2-digit', month:'2-digit', year:'numeric' });
+}
+function fmtShort(d) {
+  return d.toLocaleDateString('pl-PL', { day:'2-digit', month:'2-digit' });
+}
+function r1(n) { return Math.round(n * 10) / 10; }
+
+// ════════════════════════════════════════════
+//  RENDER KPI CARDS
+// ════════════════════════════════════════════
+function renderSummaryCards(dailyData, weeklyWithMR, limits) {
+  const xVals    = weeklyWithMR.map(w => w.throughput);
+  const total    = xVals.reduce((s,v) => s+v, 0);
+  const signals  = weeklyWithMR.filter(w => w.throughput > limits.X_UNPL || w.throughput < limits.X_LNPL).length;
+  const mrSig    = weeklyWithMR.filter(w => w.mR !== null && w.mR > limits.MR_UNPL).length;
+
+  const cards = [
+    { label:'Dni w danych',           value:dailyData.length,                    sub:'dni dziennych',            cls:'' },
+    { label:'Tygodni',                value:weeklyWithMR.length,                 sub:'po agregacji pon–ndz',     cls:'accent-blue' },
+    { label:'Łączne zadania',          value:total,                               sub:'suma throughputu',         cls:'accent-green' },
+    { label:'Mediana tygodniowa',      value:r1(limits.X_CL),                    sub:'CL — linia centralna',     cls:'accent-blue' },
+    { label:'P50',                     value:calculatePercentile(xVals,50),       sub:'percentyl 50.',            cls:'' },
+    { label:'P85',                     value:calculatePercentile(xVals,85),       sub:'percentyl 85.',            cls:'accent-amber' },
+    { label:'P95',                     value:calculatePercentile(xVals,95),       sub:'percentyl 95.',            cls:'accent-amber' },
+    { label:'Maks. tygodniowy',        value:Math.max(...xVals),                  sub:'zadań w jednym tygodniu',  cls:'' },
+    { label:'UNPL',                    value:r1(limits.X_UNPL),                   sub:'górna granica X',          cls:'' },
+    { label:'Sygnały poza granicami',  value:signals + mrSig,                     sub:`X: ${signals}, mR: ${mrSig}`, cls: (signals+mrSig)>0?'accent-red':'' },
+  ];
+
+  document.getElementById('kpi-grid').innerHTML = cards.map(c => `
+    <div class="kpi-card ${c.cls}">
+      <div class="kpi-label">${c.label}</div>
+      <div class="kpi-value">${c.value}</div>
+      <div class="kpi-sub">${c.sub}</div>
+    </div>`).join('');
+}
+
+// ════════════════════════════════════════════
+//  CHART HELPERS
+// ════════════════════════════════════════════
+let xChartInst = null, mrChartInst = null;
+
+function flatLine(val, n, label, color) {
+  return {
+    label, data: Array(n).fill(val),
+    borderColor: color, borderWidth: 1.5, borderDash: [6,4],
+    pointRadius: 0, fill: false, tension: 0, order: 10
+  };
+}
+
+// ════════════════════════════════════════════
+//  RENDER X CHART
+// ════════════════════════════════════════════
+function renderXChart(weeklyWithMR, limits) {
+  const labels = weeklyWithMR.map(w => fmtShort(w.weekStart));
+  const xVals  = weeklyWithMR.map(w => w.throughput);
+  const n      = weeklyWithMR.length;
+
+  const isSignal = w => w.throughput > limits.X_UNPL || w.throughput < limits.X_LNPL;
+  const ptColors = weeklyWithMR.map(w => isSignal(w) ? '#DC2626' : '#2563EB');
+  const ptRadii  = weeklyWithMR.map(w => isSignal(w) ? 8 : 5);
+
+  if (xChartInst) xChartInst.destroy();
+  xChartInst = new Chart(document.getElementById('xChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Throughput',
+          data: xVals,
+          borderColor: '#2563EB', backgroundColor: 'rgba(37,99,235,.07)',
+          borderWidth: 2.5, fill: false, tension: 0.15,
+          pointRadius: ptRadii, pointBackgroundColor: ptColors,
+          pointBorderColor: '#fff', pointBorderWidth: 2, order: 1
+        },
+        flatLine(limits.X_CL,   n, `CL = ${r1(limits.X_CL)}`,   '#2563EB'),
+        flatLine(limits.X_UNPL, n, `UNPL = ${r1(limits.X_UNPL)}`, '#DC2626'),
+        flatLine(limits.X_LNPL, n, `LNPL = ${r1(limits.X_LNPL)}`, '#16A34A'),
+      ]
+    },
+    options: chartOptions(weeklyWithMR, limits, 'X'),
+  });
+}
+
+// ════════════════════════════════════════════
+//  RENDER mR CHART
+// ════════════════════════════════════════════
+function renderMRChart(weeklyWithMR, limits) {
+  const labels  = weeklyWithMR.map(w => fmtShort(w.weekStart));
+  const mrVals  = weeklyWithMR.map(w => w.mR); // null for first
+  const n       = weeklyWithMR.length;
+
+  const isMRSig = w => w.mR !== null && w.mR > limits.MR_UNPL;
+  const ptColors = weeklyWithMR.map(w => isMRSig(w) ? '#DC2626' : '#7C3AED');
+  const ptRadii  = weeklyWithMR.map(w => w.mR === null ? 0 : isMRSig(w) ? 8 : 5);
+
+  if (mrChartInst) mrChartInst.destroy();
+  mrChartInst = new Chart(document.getElementById('mrChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Moving Range',
+          data: mrVals,
+          borderColor: '#7C3AED', backgroundColor: 'rgba(124,58,237,.07)',
+          borderWidth: 2.5, fill: false, tension: 0.15, spanGaps: false,
+          pointRadius: ptRadii, pointBackgroundColor: ptColors,
+          pointBorderColor: '#fff', pointBorderWidth: 2, order: 1
+        },
+        flatLine(limits.MR_CL,   n, `MR_CL = ${r1(limits.MR_CL)}`,   '#2563EB'),
+        flatLine(limits.MR_UNPL, n, `MR_UNPL = ${r1(limits.MR_UNPL)}`, '#DC2626'),
+        flatLine(0,              n, 'MR_LNPL = 0',                      '#16A34A'),
+      ]
+    },
+    options: chartOptions(weeklyWithMR, limits, 'mR'),
+  });
+}
+
+function chartOptions(weeks, limits, type) {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          title: items => {
+            const i = items[0].dataIndex;
+            return `${fmtDate(weeks[i].weekStart)} – ${fmtDate(weeks[i].weekEnd)}`;
+          },
+          label: item => {
+            if (item.datasetIndex === 0) {
+              const w = weeks[item.dataIndex];
+              if (item.raw === null) return ' mR: — (pierwszy tydzień)';
+              const isX  = type === 'X';
+              const sig  = isX
+                ? (w.throughput > limits.X_UNPL || w.throughput < limits.X_LNPL)
+                : (w.mR !== null && w.mR > limits.MR_UNPL);
+              const lbl  = isX ? `Throughput: ${item.raw}` : `mR: ${item.raw}`;
+              return ` ${lbl}${sig ? '  ⚠ SIGNAL' : ''}`;
+            }
+            return ` ${item.dataset.label}`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: { grid: { color:'#E4E8EF' }, ticks: { font:{size:11}, color:'#9CA3AF' } },
+      y: { min: 0, grid: { color:'#E4E8EF' },
+           ticks: { font:{size:11}, color:'#9CA3AF', stepSize:5 },
+           title: { display:true, text: type==='X'?'Zadania / tydzień':'Moving Range', color:'#6B7280', font:{size:11} } }
+    }
+  };
+}
+
+// ════════════════════════════════════════════
+//  RENDER TABLE
+// ════════════════════════════════════════════
+function renderWeeklyTable(weeklyWithMR, limits) {
+  document.getElementById('table-body').innerHTML = weeklyWithMR.map((w, i) => {
+    const xSig  = w.throughput > limits.X_UNPL || w.throughput < limits.X_LNPL;
+    const mrSig = w.mR !== null && w.mR > limits.MR_UNPL;
+    const xLbl  = xSig ? (w.throughput > limits.X_UNPL ? '↑ UNPL' : '↓ LNPL') : '';
+
+    return `<tr>
+      <td style="color:var(--text-3)">${i+1}</td>
+      <td>${fmtDate(w.weekStart)}</td>
+      <td>${fmtDate(w.weekEnd)}</td>
+      <td class="${xSig?'num-signal':'num'}">${w.throughput}${xSig?' ⚠':''}</td>
+      <td class="${mrSig?'num-signal':'num'}">${w.mR !== null ? w.mR+(mrSig?' ⚠':'') : '<span style="color:var(--text-3)">—</span>'}</td>
+      <td>${xSig ? `<span class="badge badge-signal">${xLbl}</span>` : `<span class="badge badge-ok">OK</span>`}</td>
+      <td>${w.mR !== null ? (mrSig ? '<span class="badge badge-signal">↑ MR_UNPL</span>' : '<span class="badge badge-ok">OK</span>') : '<span style="color:var(--text-3);font-size:12px">—</span>'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════
+//  RENDER INTERPRETATION
+// ════════════════════════════════════════════
+function renderInterpretation(dailyData, weeklyWithMR, limits) {
+  const xVals   = weeklyWithMR.map(w => w.throughput);
+  const total   = xVals.reduce((s,v) => s+v, 0);
+  const signals = weeklyWithMR.filter(w => w.throughput > limits.X_UNPL || w.throughput < limits.X_LNPL);
+  const mrSigs  = weeklyWithMR.filter(w => w.mR !== null && w.mR > limits.MR_UNPL);
+  const stable  = signals.length === 0 && mrSigs.length === 0;
+
+  let html = `<p>Dane obejmują <strong>${dailyData.length} dni</strong> (od ${fmtDate(weeklyWithMR[0].weekStart)} do ${fmtDate(weeklyWithMR[weeklyWithMR.length-1].weekEnd)}),
+    zagregowanych do <strong>${weeklyWithMR.length} tygodni</strong>. Łącznie zakończono <strong>${total} zadań</strong>.</p>
+
+  <p><strong>Typowy tygodniowy throughput</strong> wynosi <strong>${r1(limits.X_CL)} zadań</strong> (mediana — linia CL).
+    Mediana moving range (MR_CL) to <strong>${r1(limits.MR_CL)}</strong>.
+    Górna granica naturalnej zmienności <strong>UNPL = ${r1(limits.X_UNPL)}</strong>,
+    dolna <strong>LNPL = ${r1(limits.X_LNPL)}</strong>.</p>`;
+
+  if (stable) {
+    html += `<p>✅ <strong>System wygląda stabilnie.</strong> Wszystkie tygodnie mieszczą się w granicach naturalnej zmienności XmR.
+      Brak sygnałów wskazujących na zmianę systemową. Prognozowany throughput: <strong>${r1(limits.X_CL)} ± ${r1(limits.X_UNPL - limits.X_CL)} zadań / tydzień</strong>.</p>`;
+  } else {
+    html += `<p>⚠️ Wykryto łącznie <strong>${signals.length + mrSigs.length} sygnał(ów)</strong> poza granicami naturalnej zmienności. Sygnały wymagają rozmowy z zespołem — nie oznaczają automatycznie problemu.</p>`;
+  }
+
+  const above = signals.filter(w => w.throughput > limits.X_UNPL);
+  const below = signals.filter(w => w.throughput < limits.X_LNPL);
+
+  if (above.length) {
+    html += `<p>📈 <strong>Tygodnie powyżej UNPL (${r1(limits.X_UNPL)}):</strong> ${above.map(w=>`${fmtDate(w.weekStart)} — ${w.throughput} zadań`).join('; ')}.
+      Sprawdź czy to hurtowe zamknięcie starych zadań, release, sprzątanie backlogu, czy faktyczny wzrost zdolności.</p>`;
+  }
+  if (below.length) {
+    html += `<p>📉 <strong>Tygodnie poniżej LNPL (${r1(limits.X_LNPL)}):</strong> ${below.map(w=>`${fmtDate(w.weekStart)} — ${w.throughput} zadań`).join('; ')}.
+      Możliwe przyczyny: urlopy, blokady, brak decyzji, zbyt duży WIP, praca nad niewidocznymi zadaniami.</p>`;
+  }
+  if (mrSigs.length) {
+    html += `<p>📊 <strong>Wysokie moving range (mR &gt; ${r1(limits.MR_UNPL)}):</strong> ${mrSigs.map(w=>`${fmtDate(w.weekStart)} — mR = ${w.mR}`).join('; ')}.
+      Nagła zmiana tempa w tych tygodniach. Sprawdź co wydarzyło się bezpośrednio przed i w tym tygodniu.</p>`;
+  }
+
+  html += `<p style="color:var(--text-3);font-size:11px;margin-top:6px">
+    Granice: X_CL = ${r1(limits.X_CL)} · MR_median = ${r1(limits.MR_median)} · UNPL = CL + 3,145 × MR_median = ${r1(limits.X_UNPL)} · MR_UNPL = 3,865 × MR_median = ${r1(limits.MR_UNPL)}</p>`;
+
+  document.getElementById('interpretation').innerHTML = html;
+}
+
+// ════════════════════════════════════════════
+//  PIPELINE
+// ════════════════════════════════════════════
+function runDashboard(dailyData) {
+  if (!dailyData.length) { setMsg('Brak poprawnych danych.', 'err'); return; }
+
+  const weekly       = aggregateDailyToWeekly(dailyData);
+  const weeklyWithMR = calculateMovingRanges(weekly);
+  const limits       = calculateXmRLimits(weeklyWithMR);
+
+  renderSummaryCards(dailyData, weeklyWithMR, limits);
+  renderXChart(weeklyWithMR, limits);
+  renderMRChart(weeklyWithMR, limits);
+  renderWeeklyTable(weeklyWithMR, limits);
+  renderInterpretation(dailyData, weeklyWithMR, limits);
+}
+
+// ════════════════════════════════════════════
+//  UI ACTIONS
+// ════════════════════════════════════════════
+function setMsg(msg, cls='') {
+  const el = document.getElementById('import-msg');
+  el.textContent = msg; el.className = 'import-msg ' + cls;
+}
+
+function importCSV() {
+  const text = document.getElementById('csv-input').value.trim();
+  if (!text) { setMsg('Wklej dane przed wczytaniem.', 'err'); return; }
+  const daily = parseInputData(text);
+  if (!daily.length) { setMsg('Nie znaleziono poprawnych wierszy. Format: DD/MM/YYYY, liczba', 'err'); return; }
+  setMsg(`✓ Wczytano ${daily.length} wierszy.`, 'ok');
+  document.getElementById('import-details').removeAttribute('open');
+  runDashboard(daily);
+}
+
+function loadFileData() {
+  document.getElementById('csv-input').value = FILE_DATA;
+  const daily = parseInputData(FILE_DATA);
+  setMsg(`✓ Dane z pliku — ${daily.length} wierszy.`, 'ok');
+  document.getElementById('import-details').removeAttribute('open');
+  runDashboard(daily);
+}
+
+// ════════════════════════════════════════════
+//  INIT — załaduj dane z pliku od razu
+// ════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => { loadFileData(); });
+</script>
+</body>
+</html>
